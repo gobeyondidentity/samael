@@ -11,7 +11,7 @@ pub use conditions::*;
 pub use encrypted_assertions::*;
 pub use issuer::Issuer;
 pub use name_id_policy::*;
-pub use response::Response;
+pub use response::*;
 pub use subject::*;
 
 use crate::attribute::Attribute;
