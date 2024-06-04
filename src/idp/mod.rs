@@ -61,8 +61,8 @@ impl IdentityProvider {
         Ok(IdentityProvider { private_key })
     }
 
-    pub fn from_private_key_pem(der_bytes: &[u8]) -> Result<Self, Error> {
-        let rsa = Rsa::private_key_from_pem(der_bytes)?;
+    pub fn from_private_key_pem(pem_bytes: &[u8]) -> Result<Self, Error> {
+        let rsa = Rsa::private_key_from_pem(pem_bytes)?;
         let private_key = pkey::PKey::from_rsa(rsa)?;
 
         Ok(IdentityProvider { private_key })
