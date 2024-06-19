@@ -169,6 +169,7 @@ impl ServiceProvider {
                     x509_data: Some(X509Data {
                         certificates: vec![general_purpose::STANDARD.encode(&cert_bytes)],
                     }),
+                    key_name: None,
                 },
             });
             key_descriptors.push(KeyDescriptor {
@@ -178,6 +179,7 @@ impl ServiceProvider {
                     x509_data: Some(X509Data {
                         certificates: vec![general_purpose::STANDARD.encode(&cert_bytes)],
                     }),
+                    key_name: None,
                 },
                 encryption_methods: Some(vec![
                     EncryptionMethod {
@@ -375,7 +377,7 @@ impl ServiceProvider {
             }
         }
 
-        if let Some(_encrypted_assertion) = &response.encrypted_assertion {
+        if let Some(_encrypted_assertion) = &response.encrypted_assertions {
             // TODO: figure out how to make sure that this works as expected.
             Err(Error::EncryptedAssertionsNotYetSupported)
         } else if let Some(assertions) = &response.assertions {

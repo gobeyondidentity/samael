@@ -1,4 +1,5 @@
 use super::*;
+use crate::key_info::KeyInfo;
 use quick_xml::events::{BytesEnd, BytesStart, BytesText, Event};
 use quick_xml::Writer;
 use serde::Deserialize;
@@ -11,6 +12,8 @@ pub struct EncryptedKey {
     pub method: EncryptionMethod,
     #[serde(rename = "CipherData")]
     pub encryption_cipher_data: EncryptedCipherData,
+    #[serde(rename = "KeyInfo")]
+    pub key_info: Option<KeyInfo>,
 }
 
 impl EncryptedKey {
@@ -33,6 +36,10 @@ impl TryFrom<&EncryptedKey> for Event<'_> {
         let event_data: Event<'_> = (&value.encryption_cipher_data).try_into()?;
         writer.write_event(event_data)?;
         writer.write_event(Event::End(BytesEnd::new(EncryptedKey::name())))?;
+        if let Some(key_info) = value.key_info.as_ref() {
+            let event: Event<'_> = key_info.try_into()?;
+            writer.write_event(event)?;
+        }
 
         Ok(Event::Text(BytesText::from_escaped(String::from_utf8(
             write_buf,

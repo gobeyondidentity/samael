@@ -8,7 +8,7 @@ use std::io::Cursor;
 const NAME: &str = "ds:Signature";
 const SCHEMA: (&str, &str) = ("xmlns:ds", "http://www.w3.org/2000/09/xmldsig#");
 
-#[derive(Clone, Debug, Deserialize, Hash, Eq, PartialEq, Ord, PartialOrd)]
+#[derive(Clone, Debug, Deserialize, Hash, Eq, PartialEq, Ord, PartialOrd, Builder)]
 pub struct Signature {
     #[serde(rename = "@Id")]
     pub id: Option<String>,
@@ -67,6 +67,60 @@ impl Signature {
                 x509_data: Some(X509Data {
                     certificates: vec![crate::crypto::mime_encode_x509_cert(x509_cert_der)],
                 }),
+                key_name: None,
+            }]),
+        }
+    }
+
+    pub fn xmlsec_signature_template(
+        ref_id: &str,
+        signature_algorithm: &str,
+        digest_algorithm: &str,
+    ) -> Self {
+        Signature {
+            id: None,
+            signed_info: SignedInfo {
+                id: None,
+                canonicalization_method: CanonicalizationMethod {
+                    algorithm: "http://www.w3.org/2001/10/xml-exc-c14n#".to_string(),
+                },
+                signature_method: SignatureMethod {
+                    algorithm: signature_algorithm.to_string(),
+                    hmac_output_length: None,
+                },
+                reference: vec![Reference {
+                    transforms: Some(Transforms {
+                        transforms: vec![
+                            Transform {
+                                algorithm: "http://www.w3.org/2000/09/xmldsig#enveloped-signature"
+                                    .to_string(),
+                                xpath: None,
+                            },
+                            Transform {
+                                algorithm: "http://www.w3.org/2001/10/xml-exc-c14n#".to_string(),
+                                xpath: None,
+                            },
+                        ],
+                    }),
+                    digest_method: DigestMethod {
+                        algorithm: digest_algorithm.to_string(),
+                    },
+                    digest_value: Some(DigestValue {
+                        base64_content: Some("".to_string()),
+                    }),
+                    uri: Some(format!("#{}", ref_id)),
+                    reference_type: None,
+                    id: None,
+                }],
+            },
+            signature_value: SignatureValue {
+                id: None,
+                base64_content: Some("".to_string()),
+            },
+            key_info: Some(vec![KeyInfo {
+                id: None,
+                x509_data: None,
+                key_name: None,
             }]),
         }
     }
@@ -77,6 +131,7 @@ impl Signature {
             x509_data: Some(X509Data {
                 certificates: vec![general_purpose::STANDARD.encode(public_cert_der)],
             }),
+            key_name: None,
         });
         self
     }
@@ -121,7 +176,7 @@ impl TryFrom<&Signature> for Event<'_> {
 
 const SIGNATURE_VALUE_NAME: &str = "ds:SignatureValue";
 
-#[derive(Clone, Debug, Deserialize, Hash, Eq, PartialEq, Ord, PartialOrd)]
+#[derive(Clone, Debug, Deserialize, Hash, Eq, PartialEq, Ord, PartialOrd, Builder)]
 pub struct SignatureValue {
     #[serde(rename = "@Id")]
     pub id: Option<String>,
@@ -160,7 +215,7 @@ impl TryFrom<&SignatureValue> for Event<'_> {
 
 const SIGNED_INFO_NAME: &str = "ds:SignedInfo";
 
-#[derive(Clone, Debug, Deserialize, Hash, Eq, PartialEq, Ord, PartialOrd)]
+#[derive(Clone, Debug, Deserialize, Hash, Eq, PartialEq, Ord, PartialOrd, Builder)]
 pub struct SignedInfo {
     #[serde(rename = "@Id")]
     pub id: Option<String>,
@@ -208,7 +263,7 @@ impl TryFrom<&SignedInfo> for Event<'_> {
 
 const CANONICALIZATION_METHOD: &str = "ds:CanonicalizationMethod";
 
-#[derive(Clone, Debug, Deserialize, Hash, Eq, PartialEq, Ord, PartialOrd)]
+#[derive(Clone, Debug, Deserialize, Hash, Eq, PartialEq, Ord, PartialOrd, Builder)]
 pub struct CanonicalizationMethod {
     #[serde(rename = "@Algorithm")]
     pub algorithm: String,
@@ -240,7 +295,7 @@ impl TryFrom<&CanonicalizationMethod> for Event<'_> {
 const SIGNATURE_METHOD_NAME: &str = "ds:SignatureMethod";
 const HMAC_OUTPUT_LENGTH_NAME: &str = "ds:HMACOutputLength";
 
-#[derive(Clone, Debug, Deserialize, Hash, Eq, PartialEq, Ord, PartialOrd)]
+#[derive(Clone, Debug, Deserialize, Hash, Eq, PartialEq, Ord, PartialOrd, Builder)]
 pub struct SignatureMethod {
     #[serde(rename = "@Algorithm")]
     pub algorithm: String,
@@ -294,7 +349,7 @@ const TRANSFORMS_NAME: &str = "ds:Transforms";
 const TRANSFORM_NAME: &str = "ds:Transform";
 const XPATH_NAME: &str = "ds:XPath";
 
-#[derive(Clone, Debug, Deserialize, Hash, Eq, PartialEq, Ord, PartialOrd)]
+#[derive(Clone, Debug, Deserialize, Hash, Eq, PartialEq, Ord, PartialOrd, Builder)]
 pub struct Transform {
     #[serde(rename = "@Algorithm")]
     pub algorithm: String,
@@ -339,7 +394,7 @@ impl TryFrom<&Transform> for Event<'_> {
     }
 }
 
-#[derive(Clone, Debug, Deserialize, Hash, Eq, PartialEq, Ord, PartialOrd)]
+#[derive(Clone, Debug, Deserialize, Hash, Eq, PartialEq, Ord, PartialOrd, Builder)]
 pub struct Transforms {
     #[serde(rename = "Transform")]
     pub transforms: Vec<Transform>,
@@ -374,7 +429,7 @@ impl TryFrom<&Transforms> for Event<'_> {
 
 const DIGEST_METHOD: &str = "ds:DigestMethod";
 
-#[derive(Clone, Debug, Deserialize, Hash, Eq, PartialEq, Ord, PartialOrd)]
+#[derive(Clone, Debug, Deserialize, Hash, Eq, PartialEq, Ord, PartialOrd, Builder)]
 pub struct DigestMethod {
     #[serde(rename = "@Algorithm")]
     pub algorithm: String,
@@ -405,7 +460,7 @@ impl TryFrom<&DigestMethod> for Event<'_> {
 
 const DIGEST_VALUE_NAME: &str = "ds:DigestValue";
 
-#[derive(Clone, Debug, Deserialize, Hash, Eq, PartialEq, Ord, PartialOrd)]
+#[derive(Clone, Debug, Deserialize, Hash, Eq, PartialEq, Ord, PartialOrd, Builder)]
 pub struct DigestValue {
     #[serde(rename = "$value")]
     pub base64_content: Option<String>,
@@ -438,7 +493,7 @@ impl TryFrom<&DigestValue> for Event<'_> {
 
 const REFERENCE_NAME: &str = "ds:Reference";
 
-#[derive(Clone, Debug, Deserialize, Hash, Eq, PartialEq, Ord, PartialOrd)]
+#[derive(Clone, Debug, Deserialize, Hash, Eq, PartialEq, Ord, PartialOrd, Builder)]
 pub struct Reference {
     #[serde(rename = "Transforms")]
     pub transforms: Option<Transforms>,

@@ -13,7 +13,7 @@ pub struct EncryptionKeyInfo {
 
 impl EncryptionKeyInfo {
     fn name() -> &'static str {
-        "dsig:KeyInfo"
+        "ds:KeyInfo"
     }
 }
 
@@ -23,9 +23,7 @@ impl TryFrom<&EncryptionKeyInfo> for Event<'_> {
     fn try_from(value: &EncryptionKeyInfo) -> Result<Self, Self::Error> {
         let mut write_buf = Vec::new();
         let mut writer = Writer::new(Cursor::new(&mut write_buf));
-        let mut root = BytesStart::new(EncryptionKeyInfo::name());
-
-        root.push_attribute(("xmlns:dsig", "http://www.w3.org/2000/09/xmldsig#"));
+        let root = BytesStart::new(EncryptionKeyInfo::name());
 
         writer.write_event(Event::Start(root))?;
         let encrypted_key_event: Event<'_> = (&value.encrypted_key).try_into()?;

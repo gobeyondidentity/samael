@@ -4,7 +4,7 @@ use quick_xml::Writer;
 use serde::Deserialize;
 use std::io::Cursor;
 
-#[derive(Clone, Debug, Deserialize, Hash, Eq, PartialEq, Ord, PartialOrd, Builder)]
+#[derive(Clone, Debug, Deserialize, Hash, Eq, PartialEq, Ord, PartialOrd, Builder, Default)]
 #[builder(setter(into))]
 pub struct EncryptedCipherData {
     #[serde(rename = "CipherValue")]
@@ -23,12 +23,7 @@ impl TryFrom<&EncryptedCipherData> for Event<'_> {
     fn try_from(value: &EncryptedCipherData) -> Result<Self, Self::Error> {
         let mut write_buf = Vec::new();
         let mut writer = Writer::new(Cursor::new(&mut write_buf));
-        let mut root = BytesStart::new(EncryptedCipherData::name());
-
-        // Attaching namespace attributes
-        root.push_attribute(("xmlns:xenc", "http://www.w3.org/2001/04/xmlenc#"));
-        root.push_attribute(("xmlns:dsig", "http://www.w3.org/2000/09/xmldsig#"));
-        root.push_attribute(("Type", "http://www.w3.org/2001/04/xmlenc#Element"));
+        let root = BytesStart::new(EncryptedCipherData::name());
 
         writer.write_event(Event::Start(root))?;
         let event: Event<'_> = (&value.value).try_into()?;

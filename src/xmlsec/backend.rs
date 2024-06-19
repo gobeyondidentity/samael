@@ -12,7 +12,8 @@ mod backend {
         // xmlSecOpenSSLAppKeyCertLoad as xmlSecCryptoAppKeyCertLoad,
         // xmlSecOpenSSLAppKeyCertLoadMemory as xmlSecCryptoAppKeyCertLoadMemory,
         xmlSecOpenSSLAppKeyLoadMemory as xmlSecCryptoAppKeyLoadMemory,
-        xmlSecOpenSSLAppShutdown as xmlSecCryptoAppShutdown, xmlSecOpenSSLInit as xmlSecCryptoInit,
+        xmlSecOpenSSLAppShutdown as xmlSecCryptoAppShutdown,
+        xmlSecOpenSSLInit as xmlSecCryptoInit,
         xmlSecOpenSSLShutdown as xmlSecCryptoShutdown,
     };
 }

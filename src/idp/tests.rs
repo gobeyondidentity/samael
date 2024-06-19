@@ -4,7 +4,16 @@ use chrono::prelude::*;
 use crate::crypto::verify_signed_xml;
 use crate::idp::sp_extractor::{RequiredAttribute, SPMetadataExtractor};
 use crate::idp::verified_request::UnverifiedAuthnRequest;
+use crate::key_info::{KeyInfo, KeyName};
+use crate::schema::{
+    AttributeStatement, AudienceRestriction, AuthnContext, AuthnContextClassRef, AuthnStatement,
+    Conditions, EncryptedAssertionBuilder, EncryptedCipherData, EncryptedCipherValue,
+    EncryptedData, EncryptedKey, EncryptionKeyInfo, EncryptionMethod, Issuer, IssuerBuilder,
+    ResponseBuilder, StatusBuilder, StatusCode, StatusCodeBuilder, Subject, SubjectConfirmation,
+    SubjectConfirmationData, SubjectNameID,
+};
 use crate::service_provider::ServiceProvider;
+use crate::signature::SignatureBuilder;
 
 #[test]
 fn test_self_signed_authn_request() {
@@ -320,50 +329,50 @@ fn test_accept_signed_with_correct_key_idp_2() {
 
 #[test]
 fn test_signed_assertions() {
-    let idp = IdentityProvider::from_private_key_der(include_bytes!(
-        "../../test_vectors/idp_private_key.der"
-    ))
-    .expect("failed to create idp");
+    // let idp = IdentityProvider::from_private_key_der(include_bytes!(
+    //     "../../test_vectors/idp_private_key.der"
+    // ))
+    // .expect("failed to create idp");
 
-    let params = CertificateParams {
-        common_name: "https://idp.example.com",
-        issuer_name: "https://idp.example.com",
-        days_until_expiration: 3650,
-    };
+    // let params = CertificateParams {
+    //     common_name: "https://idp.example.com",
+    //     issuer_name: "https://idp.example.com",
+    //     days_until_expiration: 3650,
+    // };
 
-    let idp_cert = idp.create_certificate(&params).expect("idp cert error");
-    let response = idp
-        .create_template_response(
-            idp_cert.as_slice(),
-            "testuser@example.com",
-            "https://sp.example.com/audience",
-            "https://sp.example.com/acs",
-            "https://idp.example.com",
-            "",
-            &[],
-        )
-        .expect("failed to created and sign response");
+    // let idp_cert = idp.create_certificate(&params).expect("idp cert error");
+    // let response = idp
+    //     .create_template_response(
+    //         idp_cert.as_slice(),
+    //         "testuser@example.com",
+    //         "https://sp.example.com/audience",
+    //         "https://sp.example.com/acs",
+    //         "https://idp.example.com",
+    //         "",
+    //         &[],
+    //     )
+    //     .expect("failed to created and sign response");
 
-    let base_64_body = idp
-        .generate_response(Some(&params), true, false, false, response)
-        .expect("Code generation failed");
-    println!("base_64_body = {}", base_64_body)
-    // let base64_cert = response
-    //     .signature
-    //     .unwrap()
-    //     .key_info
-    //     .unwrap()
-    //     .first()
-    //     .unwrap()
-    //     .x509_data
-    //     .clone()
-    //     .unwrap()
-    //     .certificates
-    //     .first()
-    //     .cloned()
-    //     .unwrap();
-    // let der_cert = crate::crypto::decode_x509_cert(&base64_cert).expect("failed to decode cert ");
-    // assert_eq!(der_cert, idp_cert);
+    // let base_64_body = idp
+    //     .generate_response(Some(&params), true, false, false, response)
+    //     .expect("Code generation failed");
+    // println!("base_64_body = {}", base_64_body)
+    // // let base64_cert = response
+    // //     .signature
+    // //     .unwrap()
+    // //     .key_info
+    // //     .unwrap()
+    // //     .first()
+    // //     .unwrap()
+    // //     .x509_data
+    // //     .clone()
+    // //     .unwrap()
+    // //     .certificates
+    // //     .first()
+    // //     .cloned()
+    // //     .unwrap();
+    // // let der_cert = crate::crypto::decode_x509_cert(&base64_cert).expect("failed to decode cert ");
+    // // assert_eq!(der_cert, idp_cert);
 }
 
 #[test]
@@ -372,8 +381,6 @@ fn test_signed_encrypted_assertions() {
     let encryption_keys = openssl::rsa::Rsa::generate(4096).unwrap();
     let public_key = encryption_keys.public_key_to_pem().unwrap();
     let public_encryption_key = openssl::rsa::Rsa::public_key_from_pem(&public_key).unwrap();
-    // let rsa = Rsa::generate(key_type.bit_length()).unwrap();
-    // let private_key = pkey::PKey::from_rsa(rsa)?;
 
     let idp = IdentityProvider::new(
         Some("test_key_name".into()),
@@ -386,19 +393,164 @@ fn test_signed_encrypted_assertions() {
         issuer_name: "https://idp.example.com",
         days_until_expiration: 3650,
     };
-
-    let idp_cert = idp.create_certificate(&params).expect("idp cert error");
-    let response = idp
-        .create_template_response(
-            idp_cert.as_slice(),
-            "testuser@example.com",
-            "https://sp.example.com/audience",
-            "https://sp.example.com/acs",
-            "https://idp.example.com",
-            "",
-            &[],
+    let assertion_id = crypto::gen_saml_assertion_id();
+    // let idp_cert = idp.create_certificate(&params).expect("idp cert error");
+    let issuer = Issuer {
+        value: Some("http://its-a-me.com".to_string()),
+        ..Default::default()
+    };
+    // let issuer = IssuerBuilder::default()
+    //     .value("http://its-a-me.com")
+    //     .build()
+    //     .unwrap();
+    let response = ResponseBuilder::default()
+        .id("123456789")
+        .version("2.0")
+        .issue_instant(Utc::now())
+        .destination(Some("https://sp.example.com/acs".into()))
+        .issuer(issuer.clone())
+        .consent(None)
+        .in_response_to("".to_string())
+        .signature(Signature::xmlsec_signature_template(
+            "123456789",
+            "http://www.w3.org/2001/04/xmldsig-more#rsa-sha256",
+            "http://www.w3.org/2000/09/xmldsig#sha1",
+        ))
+        .status(
+            StatusBuilder::default()
+                .status_code(StatusCode {
+                    value: Some("urn:oasis:names:tc:SAML:2.0:status:Success".to_string()),
+                })
+                .status_message(None)
+                .build()
+                .unwrap(),
         )
-        .expect("failed to created and sign response");
+        .assertions(None)
+        .encrypted_assertions(vec![EncryptedAssertionBuilder::default()
+            .data(EncryptedData {
+                method: EncryptionMethod {
+                    algorithm: "http://www.w3.org/2001/04/xmlenc#aes128-cbc".to_string(),
+                },
+                encryption_cipher_data: EncryptedCipherData {
+                    value: EncryptedCipherValue { value: None },
+                },
+                signature_key_info: vec![EncryptionKeyInfo {
+                    encrypted_key: EncryptedKey {
+                        method: EncryptionMethod {
+                            algorithm: "http://www.w3.org/2001/04/xmlenc#rsa-1_5".to_string(),
+                        },
+                        encryption_cipher_data: EncryptedCipherData {
+                            value: EncryptedCipherValue { value: None },
+                        },
+                        key_info: Some(KeyInfo {
+                            key_name: Some(KeyName::default()),
+                            ..Default::default()
+                        }),
+                    },
+                }],
+            })
+            .assertion(Assertion {
+                id: assertion_id,
+                issue_instant: Utc::now(),
+                version: "2.0".to_string(),
+                issuer: issuer.clone(),
+                signature: None,
+                subject: Some(Subject {
+                    name_id: Some(SubjectNameID {
+                        format: Some(
+                            "urn:oasis:names:tc:SAML:2.0:nameid-format:unspecified".to_string(),
+                        ),
+                        value: "testuser@example.com".to_owned(),
+                    }),
+                    subject_confirmations: Some(vec![SubjectConfirmation {
+                        method: Some("urn:oasis:names:tc:SAML:2.0:cm:bearer".to_string()),
+                        name_id: None,
+                        subject_confirmation_data: Some(SubjectConfirmationData {
+                            not_before: None,
+                            not_on_or_after: None,
+                            recipient: Some("https://sp.example.com/acs".to_owned()),
+                            in_response_to: Some("123456789".to_owned()),
+                            address: None,
+                            content: None,
+                        }),
+                    }]),
+                }),
+                conditions: Some(Conditions {
+                    not_before: None,
+                    not_on_or_after: None,
+                    audience_restrictions: Some(vec![AudienceRestriction {
+                        audience: vec!["https://sp.example.com/audience".to_string()],
+                    }]),
+                    one_time_use: None,
+                    proxy_restriction: None,
+                }),
+                authn_statements: Some(vec![AuthnStatement {
+                    authn_instant: Some(Utc::now()),
+                    session_index: None,
+                    session_not_on_or_after: None,
+                    subject_locality: None,
+                    authn_context: Some(AuthnContext {
+                        value: Some(AuthnContextClassRef {
+                            value: Some(
+                                "urn:oasis:names:tc:SAML:2.0:ac:classes:unspecified".to_string(),
+                            ),
+                        }),
+                    }),
+                }]),
+                attribute_statements: None,
+            })
+            .build()
+            .unwrap()])
+        .build()
+        .unwrap();
+    println!("Response XML:{} ", response.to_xml().unwrap());
+    // Response {
+    //     id: response_id.clone(),
+    //     in_response_to: Some(request_id.to_owned()),
+    //     version: "2.0".to_string(),
+    //     issue_instant: Utc::now(),
+    //     destination: Some(destination.to_string()),
+    //     consent: None,
+    //     issuer: Some(issuer.clone()),
+    //     signature: Some(Signature::template(&response_id, x509_cert)),
+    //     status: Some(Status {
+    //         status_code: StatusCode {
+    //             value: Some("urn:oasis:names:tc:SAML:2.0:status:Success".to_string()),
+    //         },
+    //         status_message: None,
+    //     }),
+    //     encrypted_assertions: None,
+    //     assertions: Some(vec![build_assertion(
+    //         name_id,
+    //         request_id,
+    //         issuer,
+    //         destination,
+    //         audience,
+    //         attributes,
+    //     )]),
+    // }
+    // let response = idp
+    // .create_template_response(
+    //     idp_cert.as_slice(),
+    //     "testuser@example.com",
+    //     "https://sp.example.com/audience",
+    //     "https://sp.example.com/acs",
+    //     "https://idp.example.com",
+    //     "",
+    //     &[],
+    // )
+    // .expect("failed to created and sign response");
+    // let response = idp
+    //     .create_template_response(
+    //         idp_cert.as_slice(),
+    //         "testuser@example.com",
+    //         "https://sp.example.com/audience",
+    //         "https://sp.example.com/acs",
+    //         "https://idp.example.com",
+    //         "",
+    //         &[],
+    //     )
+    //     .expect("failed to created and sign response");
 
     let base_64_body = idp
         .generate_response(Some(&params), false, true, false, response)

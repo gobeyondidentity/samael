@@ -279,7 +279,7 @@ impl ResponseGenerator {
                 } else {
                     todo!("Create an error for missing assertions")
                 };
-                saml_response.encrypted_assertion = Some(encrypted_assertions);
+                saml_response.encrypted_assertions = Some(encrypted_assertions);
             } else {
                 todo!("Make an error when asking for encrypted assertions without encryption key")
             }

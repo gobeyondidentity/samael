@@ -7,7 +7,7 @@ const NAME: &str = "saml2:Issuer";
 const SCHEMA: (&str, &str) = ("xmlns:saml2", "urn:oasis:names:tc:SAML:2.0:assertion");
 
 #[derive(Clone, Debug, Deserialize, Default, Hash, Eq, PartialEq, Ord, PartialOrd, Builder)]
-#[builder(setter(into, strip_option))]
+#[builder(setter(strip_option, into))]
 pub struct Issuer {
     #[serde(rename = "@NameQualifier")]
     pub name_qualifier: Option<String>,

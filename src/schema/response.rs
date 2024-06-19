@@ -19,37 +19,25 @@ pub struct Response {
     #[serde(rename = "@ID")]
     pub id: String,
     #[serde(rename = "@InResponseTo")]
-    #[builder(setter(strip_option))]
     pub in_response_to: Option<String>,
     #[serde(rename = "@Version")]
     pub version: String,
     #[serde(rename = "@IssueInstant")]
-    #[builder(setter(strip_option))]
     pub issue_instant: DateTime<Utc>,
     #[serde(rename = "@Destination")]
-    #[builder(setter(strip_option))]
     pub destination: Option<String>,
     #[serde(rename = "@Consent")]
-    #[builder(setter(strip_option))]
     pub consent: Option<String>,
     #[serde(rename = "Issuer")]
-    #[builder(setter(strip_option))]
     pub issuer: Option<Issuer>,
     #[serde(rename = "Signature")]
-    #[builder(setter(strip_option))]
     pub signature: Option<Signature>,
     #[serde(rename = "Status")]
-    #[builder(setter(strip_option))]
     pub status: Option<Status>,
     #[serde(rename = "EncryptedAssertion")]
-    #[builder(setter(strip_option))]
-    pub encrypted_assertion: Option<Vec<EncryptedAssertion>>,
-    #[serde(rename = "Assertion")]
-    #[builder(setter(strip_option))]
-    pub assertions: Option<Vec<Assertion>>,
-    #[serde(rename = "EncryptedAssertion")]
-    #[builder(setter(strip_option))]
     pub encrypted_assertions: Option<Vec<EncryptedAssertion>>,
+    #[serde(rename = "Assertion")]
+    pub assertions: Option<Vec<Assertion>>,
 }
 
 #[derive(Debug, Error)]

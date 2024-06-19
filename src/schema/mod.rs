@@ -517,7 +517,6 @@ pub struct Status {
     #[serde(rename = "StatusCode")]
     pub status_code: StatusCode,
     #[serde(rename = "StatusMessage")]
-    #[builder(setter(strip_option))]
     pub status_message: Option<Vec<StatusMessage>>,
     // TODO: This currently isn't being used or supported but in the future
     // support may be necessary. But it's invalidated XML so it really doesn't
@@ -567,9 +566,10 @@ impl TryFrom<&Status> for Event<'_> {
 }
 
 #[derive(Clone, Debug, Deserialize, Hash, Eq, PartialEq, Ord, PartialOrd, Builder)]
-#[builder(setter(into, strip_option))]
+#[builder(setter(into))]
 pub struct StatusCode {
     #[serde(rename = "@Value")]
+    #[builder(setter(strip_option))]
     pub value: Option<String>,
 }
 
@@ -607,9 +607,10 @@ impl TryFrom<&StatusCode> for Event<'_> {
 }
 
 #[derive(Clone, Debug, Deserialize, Hash, Eq, PartialEq, Ord, PartialOrd, Builder)]
-#[builder(setter(into, strip_option))]
+#[builder(setter(into))]
 pub struct StatusMessage {
     #[serde(rename = "@Value")]
+    #[builder(setter(strip_option))]
     pub value: Option<String>,
 }
 
