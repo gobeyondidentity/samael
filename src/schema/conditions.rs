@@ -73,7 +73,8 @@ impl TryFrom<&Conditions> for Event<'_> {
 const AUDIENCE_RESTRICTION_NAME: &str = "saml2:AudienceRestriction";
 const AUDIENCE_NAME: &str = "saml2:Audience";
 
-#[derive(Clone, Debug, Deserialize, Hash, Eq, PartialEq, Ord, PartialOrd)]
+#[derive(Clone, Debug, Deserialize, Hash, Eq, PartialEq, Ord, PartialOrd, Builder)]
+#[builder(setter(into))]
 pub struct AudienceRestriction {
     #[serde(rename = "Audience")]
     pub audience: Vec<String>,
@@ -112,7 +113,9 @@ pub struct OneTimeUse {}
 
 const PROXY_RESTRICTION_NAME: &str = "saml2:ProxyRestriction";
 
-#[derive(Clone, Debug, Deserialize, Hash, Eq, PartialEq, Ord, PartialOrd)]
+#[derive(Clone, Debug, Deserialize, Hash, Eq, PartialEq, Ord, PartialOrd, Builder)]
+#[builder(setter(into, strip_option))]
+
 pub struct ProxyRestriction {
     #[serde(rename = "@Count")]
     pub count: Option<usize>,

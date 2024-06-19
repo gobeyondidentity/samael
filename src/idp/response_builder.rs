@@ -10,6 +10,9 @@ use chrono::Utc;
 use super::sp_extractor::RequiredAttribute;
 use crate::crypto;
 
+#[derive(Default, Debug, Clone)]
+pub struct ResponseConstructor {}
+
 fn build_conditions(audience: &str) -> Conditions {
     Conditions {
         not_before: None,

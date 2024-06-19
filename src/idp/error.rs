@@ -1,36 +1,43 @@
+use std::str::Utf8Error;
+
 use thiserror::Error;
 
 #[derive(Debug, Error)]
 pub enum Error {
-    #[error("")]
+    #[error("Missing signature")]
     NoSignature,
-    #[error("")]
+    #[error("Missing KeyInfo")]
     NoKeyInfo,
-    #[error("")]
+    #[error("Missing certificate")]
     NoCertificate,
-    #[error("")]
+    #[error("Missing service provider SSO descriptors")]
     NoSPSsoDescriptors,
-    #[error("")]
+    #[error("Failed to generate signature")]
     SignatureFailed,
-    #[error("")]
-    UnexpectedError,
-    #[error("")]
+    #[error("certificate mismatch")]
     MismatchedCertificate,
-    #[error("")]
+    #[error("invalid certificate encoding")]
     InvalidCertificateEncoding,
 
-    #[error("")]
+    #[error("Missing audience from response.")]
     MissingAudience,
-    #[error("")]
+    #[error("Missing ACS url from response")]
     MissingAcsUrl,
-    #[error("")]
+    #[error("Non-http POST bindings are not supported")]
     NonHttpPostBindingUnsupported,
 
-    #[error("")]
+    #[error("Missing subject name ID")]
     MissingAuthnRequestSubjectNameID,
-    #[error("")]
+    #[error("Missing request issuer")]
     MissingAuthnRequestIssuer,
 
+    #[error(transparent)]
+    XmlGenerationError(Box<dyn std::error::Error>),
+    // #[error(transparent)]
+    // QuickXmlError(#[from] quick_xml::Error),
+
+    // #[error(transparent)]
+    // Utf8ConversionError(Utf8Error),
     #[error("Invalid AuthnRequest: {}", error)]
     InvalidAuthnRequest {
         #[from]

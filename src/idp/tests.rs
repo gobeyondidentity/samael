@@ -89,7 +89,7 @@ fn test_signed_response() {
 
     // create and sign a response
     let out_response = idp
-        .sign_authn_response(
+        .create_template_response(
             idp_cert.as_slice(),
             "testuser@example.com",
             "https://sp.example.com/audience",
@@ -148,7 +148,7 @@ fn test_signed_response_fingerprint() {
 
     let idp_cert = idp.create_certificate(&params).expect("idp cert error");
     let response = idp
-        .sign_authn_response(
+        .create_template_response(
             idp_cert.as_slice(),
             "testuser@example.com",
             "https://sp.example.com/audience",
@@ -316,4 +316,108 @@ fn test_accept_signed_with_correct_key_idp_2() {
     );
 
     assert!(resp.is_ok());
+}
+
+#[test]
+fn test_signed_assertions() {
+    let idp = IdentityProvider::from_private_key_der(include_bytes!(
+        "../../test_vectors/idp_private_key.der"
+    ))
+    .expect("failed to create idp");
+
+    let params = CertificateParams {
+        common_name: "https://idp.example.com",
+        issuer_name: "https://idp.example.com",
+        days_until_expiration: 3650,
+    };
+
+    let idp_cert = idp.create_certificate(&params).expect("idp cert error");
+    let response = idp
+        .create_template_response(
+            idp_cert.as_slice(),
+            "testuser@example.com",
+            "https://sp.example.com/audience",
+            "https://sp.example.com/acs",
+            "https://idp.example.com",
+            "",
+            &[],
+        )
+        .expect("failed to created and sign response");
+
+    let base_64_body = idp
+        .generate_response(Some(&params), true, false, false, response)
+        .expect("Code generation failed");
+    println!("base_64_body = {}", base_64_body)
+    // let base64_cert = response
+    //     .signature
+    //     .unwrap()
+    //     .key_info
+    //     .unwrap()
+    //     .first()
+    //     .unwrap()
+    //     .x509_data
+    //     .clone()
+    //     .unwrap()
+    //     .certificates
+    //     .first()
+    //     .cloned()
+    //     .unwrap();
+    // let der_cert = crate::crypto::decode_x509_cert(&base64_cert).expect("failed to decode cert ");
+    // assert_eq!(der_cert, idp_cert);
+}
+
+#[test]
+fn test_signed_encrypted_assertions() {
+    let signature_keys = openssl::rsa::Rsa::generate(4096).unwrap();
+    let encryption_keys = openssl::rsa::Rsa::generate(4096).unwrap();
+    let public_key = encryption_keys.public_key_to_pem().unwrap();
+    let public_encryption_key = openssl::rsa::Rsa::public_key_from_pem(&public_key).unwrap();
+    // let rsa = Rsa::generate(key_type.bit_length()).unwrap();
+    // let private_key = pkey::PKey::from_rsa(rsa)?;
+
+    let idp = IdentityProvider::new(
+        Some("test_key_name".into()),
+        Some(pkey::PKey::from_rsa(public_encryption_key).unwrap()),
+        pkey::PKey::from_rsa(signature_keys).unwrap(),
+    );
+
+    let params = CertificateParams {
+        common_name: "https://idp.example.com",
+        issuer_name: "https://idp.example.com",
+        days_until_expiration: 3650,
+    };
+
+    let idp_cert = idp.create_certificate(&params).expect("idp cert error");
+    let response = idp
+        .create_template_response(
+            idp_cert.as_slice(),
+            "testuser@example.com",
+            "https://sp.example.com/audience",
+            "https://sp.example.com/acs",
+            "https://idp.example.com",
+            "",
+            &[],
+        )
+        .expect("failed to created and sign response");
+
+    let base_64_body = idp
+        .generate_response(Some(&params), false, true, false, response)
+        .expect("Code generation failed");
+    println!("base_64_body = {}", base_64_body)
+    // let base64_cert = response
+    //     .signature
+    //     .unwrap()
+    //     .key_info
+    //     .unwrap()
+    //     .first()
+    //     .unwrap()
+    //     .x509_data
+    //     .clone()
+    //     .unwrap()
+    //     .certificates
+    //     .first()
+    //     .cloned()
+    //     .unwrap();
+    // let der_cert = crate::crypto::decode_x509_cert(&base64_cert).expect("failed to decode cert ");
+    // assert_eq!(der_cert, idp_cert);
 }

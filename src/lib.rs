@@ -8,7 +8,7 @@ pub mod schema;
 pub mod service_provider;
 pub mod signature;
 
-mod xmlsec;
+pub mod xmlsec;
 
 mod traits;
 

@@ -1,7 +1,8 @@
 //!
 //! Wrapper for XmlSec Key and Certificate management Context
 //!
-use crate::bindings;
+use crate::bindings::xmlSecKeyDataFormat_xmlSecKeyDataFormatPem;
+use crate::bindings::{self, xmlSecKeySetName, xmlSecOpenSSLAppKeyLoadMemory};
 
 use super::backend;
 use super::error::XmlSecError;
@@ -75,6 +76,40 @@ impl XmlSecKey {
 
         ptr
     }
+
+    /// Attempts to load a key from rust native representation
+    pub fn from_public_rsa_key_pem(name: &str, key: &[u8]) -> XmlSecResult<Self> {
+        unsafe {
+            let key_ptr = xmlSecOpenSSLAppKeyLoadMemory(
+                key.as_ptr(),
+                key.len() as u32,
+                xmlSecKeyDataFormat_xmlSecKeyDataFormatPem,
+                null(),
+                null_mut(),
+                null_mut(),
+            );
+            // CHecking all of the things that verify if a key was loaded
+            // correctly this is based on the macro xmlSecKeyIsValid.
+            if key_ptr.is_null() || (*key_ptr).value.is_null() || (*(*key_ptr).value).id.is_null() {
+                return Err(XmlSecError::KeyLoadError);
+            }
+
+            // Setting the key name for later lookup
+
+            if xmlSecKeySetName(
+                key_ptr,
+                std::ffi::CString::from_vec_unchecked(name.as_bytes().to_vec()).as_ptr()
+                    as *const u8,
+            ) != 0
+            {
+                return Err(XmlSecError::SecSetKeyNameError);
+            }
+
+            Ok(Self::from_ptr(key_ptr))
+        }
+    }
+
+    // xmlSecOpenSSLAppKeyLoadMemory
 }
 
 impl PartialEq for XmlSecKey {

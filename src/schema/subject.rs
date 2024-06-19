@@ -50,7 +50,8 @@ impl<'a> TryFrom<&SubjectType<'a>> for Event<'_> {
 const NAME: &str = "saml2:Subject";
 const SCHEMA: (&str, &str) = ("xmlns:saml2", "urn:oasis:names:tc:SAML:2.0:assertion");
 
-#[derive(Clone, Debug, Deserialize, Hash, Eq, PartialEq, Ord, PartialOrd)]
+#[derive(Clone, Debug, Deserialize, Hash, Eq, PartialEq, Ord, PartialOrd, Builder)]
+#[builder(setter(strip_option, into))]
 pub struct Subject {
     #[serde(rename = "NameID")]
     pub name_id: Option<SubjectNameID>,
@@ -93,7 +94,8 @@ impl TryFrom<&Subject> for Event<'_> {
     }
 }
 
-#[derive(Clone, Debug, Deserialize, Hash, Eq, PartialEq, Ord, PartialOrd)]
+#[derive(Clone, Debug, Deserialize, Hash, Eq, PartialEq, Ord, PartialOrd, Builder)]
+#[builder(setter(strip_option, into))]
 pub struct SubjectNameID {
     #[serde(rename = "@Format")]
     pub format: Option<String>,
@@ -139,7 +141,8 @@ impl TryFrom<&SubjectNameID> for Event<'_> {
 
 const SUBJECT_CONFIRMATION_NAME: &str = "saml2:SubjectConfirmation";
 
-#[derive(Clone, Debug, Deserialize, Hash, Eq, PartialEq, Ord, PartialOrd)]
+#[derive(Clone, Debug, Deserialize, Hash, Eq, PartialEq, Ord, PartialOrd, Builder)]
+#[builder(setter(strip_option, into))]
 pub struct SubjectConfirmation {
     #[serde(rename = "@Method")]
     pub method: Option<String>,
@@ -185,7 +188,8 @@ impl TryFrom<&SubjectConfirmation> for Event<'_> {
 
 const SUBJECT_CONFIRMATION_DATA_NAME: &str = "saml2:SubjectConfirmationData";
 
-#[derive(Clone, Debug, Deserialize, Hash, Eq, PartialEq, Ord, PartialOrd)]
+#[derive(Clone, Debug, Deserialize, Hash, Eq, PartialEq, Ord, PartialOrd, Builder)]
+#[builder(setter(strip_option, into))]
 pub struct SubjectConfirmationData {
     #[serde(rename = "@NotBefore")]
     pub not_before: Option<chrono::DateTime<Utc>>,

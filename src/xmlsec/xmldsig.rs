@@ -11,7 +11,7 @@ use super::XmlSecResult;
 use std::os::raw::c_uchar;
 use std::ptr::{null, null_mut};
 
-/// Signature signing/veryfying context
+/// Signature signing/verifying context
 pub struct XmlSecSignatureContext {
     ctx: *mut bindings::xmlSecDSigCtx,
 }

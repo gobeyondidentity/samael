@@ -9,7 +9,7 @@ mod subject;
 pub use authn_request::AuthnRequest;
 pub use conditions::*;
 pub use encrypted_assertions::*;
-pub use issuer::Issuer;
+pub use issuer::*;
 pub use name_id_policy::*;
 pub use response::*;
 pub use subject::*;
@@ -187,7 +187,6 @@ pub struct Assertion {
     #[serde(rename = "Issuer")]
     pub issuer: Issuer,
     #[serde(rename = "Signature")]
-    #[builder(setter(strip_option))]
     pub signature: Option<Signature>,
     #[serde(rename = "Subject")]
     #[builder(setter(strip_option))]
