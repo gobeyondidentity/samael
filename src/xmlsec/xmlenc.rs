@@ -174,7 +174,6 @@ mod test {
 
     #[test]
     fn test_encryption_context() {
-        crate::init().expect("Failed to initialize everything");
         let rsa_key = openssl::rsa::Rsa::generate(4096).expect("Failed to create rsa keys");
 
         // Setting up A key manager.

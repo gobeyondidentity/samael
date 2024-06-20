@@ -10,7 +10,7 @@ use std::io::Cursor;
 #[builder(setter(into))]
 pub struct EncryptedAssertion {
     #[serde(rename = "EncryptedData")]
-    pub data: EncryptedData,
+    pub data: Option<EncryptedData>,
 
     #[serde(rename = "Assertion")]
     pub assertion: Assertion,
@@ -33,8 +33,16 @@ impl TryFrom<&EncryptedAssertion> for Event<'_> {
         root.push_attribute(("xmlns:saml2", "urn:oasis:names:tc:SAML:2.0:assertion"));
 
         writer.write_event(Event::Start(root))?;
-        let event: Event<'_> = (&value.data).try_into()?;
-        writer.write_event(event)?;
+        if let Some(encrypted_data) = value.data.as_ref() {
+            let event: Event<'_> = encrypted_data.try_into()?;
+            writer.write_event(event)?;
+        } else {
+            return Err(Box::new(
+                crate::schema::error::SchemaError::MissingEncryptionTemplate(
+                    "EncryptedAssertion".to_string(),
+                ),
+            ));
+        }
         let event: Event<'_> = (&value.assertion).try_into()?;
         writer.write_event(event)?;
         writer.write_event(Event::End(BytesEnd::new(EncryptedAssertion::name())))?;

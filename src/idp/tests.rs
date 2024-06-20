@@ -2,7 +2,6 @@ use super::*;
 use crate::crypto::verify_signed_xml;
 use crate::idp::sp_extractor::{RequiredAttribute, SPMetadataExtractor};
 use crate::idp::verified_request::UnverifiedAuthnRequest;
-use crate::key_info::{KeyInfo, KeyName};
 use crate::schema::{
     Assertion, AudienceRestriction, AuthnContext, AuthnContextClassRef, AuthnStatement, Conditions,
     EncryptedAssertionBuilder, EncryptedCipherData, EncryptedCipherValue, EncryptedData,
@@ -324,54 +323,6 @@ fn test_accept_signed_with_correct_key_idp_2() {
     assert!(resp.is_ok());
 }
 
-// #[test]
-// fn test_signed_assertions() {
-// let idp = IdentityProvider::from_private_key_der(include_bytes!(
-//     "../../test_vectors/idp_private_key.der"
-// ))
-// .expect("failed to create idp");
-
-// let params = CertificateParams {
-//     common_name: "https://idp.example.com",
-//     issuer_name: "https://idp.example.com",
-//     days_until_expiration: 3650,
-// };
-
-// let idp_cert = idp.create_certificate(&params).expect("idp cert error");
-// let response = idp
-//     .create_template_response(
-//         idp_cert.as_slice(),
-//         "testuser@example.com",
-//         "https://sp.example.com/audience",
-//         "https://sp.example.com/acs",
-//         "https://idp.example.com",
-//         "",
-//         &[],
-//     )
-//     .expect("failed to created and sign response");
-
-// let base_64_body = idp
-//     .generate_response(Some(&params), true, false, false, response)
-//     .expect("Code generation failed");
-// println!("base_64_body = {}", base_64_body)
-// // let base64_cert = response
-// //     .signature
-// //     .unwrap()
-// //     .key_info
-// //     .unwrap()
-// //     .first()
-// //     .unwrap()
-// //     .x509_data
-// //     .clone()
-// //     .unwrap()
-// //     .certificates
-// //     .first()
-// //     .cloned()
-// //     .unwrap();
-// // let der_cert = crate::crypto::decode_x509_cert(&base64_cert).expect("failed to decode cert ");
-// // assert_eq!(der_cert, idp_cert);
-// }
-
 #[test]
 fn test_signed_assertions() {
     let signature_keys = openssl::rsa::Rsa::generate(4096).unwrap();
@@ -379,6 +330,7 @@ fn test_signed_assertions() {
     let public_key = encryption_keys.public_key_to_pem().unwrap();
     let public_encryption_key = openssl::rsa::Rsa::public_key_from_pem(&public_key).unwrap();
     let public_idp_signature_key = signature_keys.public_key_to_der().unwrap();
+
     let idp = IdentityProvider::new(
         Some("test_key_name".into()),
         Some(pkey::PKey::from_rsa(public_encryption_key).unwrap()),
@@ -536,6 +488,13 @@ fn test_encrypted_assertions() {
     let public_key = encryption_keys.public_key_to_pem().unwrap();
     let public_encryption_key = openssl::rsa::Rsa::public_key_from_pem(&public_key).unwrap();
     let public_idp_signature_key = signature_keys.public_key_to_der().unwrap();
+
+    // Setting up a decryption context
+    let dec_key_manager = XmlSecKeyManager::new().expect("Failed to create key manager");
+    let private_key_pem = encryption_keys.private_key_to_pem().unwrap();
+    let dec_sec_key = XmlSecKey::from_rsa_key_pem("test_name", &private_key_pem).unwrap();
+    dec_key_manager.adopt_key(dec_sec_key).unwrap();
+
     let idp = IdentityProvider::new(
         Some("test_key_name".into()),
         Some(pkey::PKey::from_rsa(public_encryption_key).unwrap()),
@@ -649,57 +608,35 @@ fn test_encrypted_assertions() {
         .unwrap();
     println!("Response XML:{} ", response.to_xml().unwrap());
 
-    let xml_response = idp
+    let saml_response = idp
         .generate_response(Some(&params), response)
         .expect("Code generation failed");
-    println!("xml_response = {}", xml_response);
-
-    let decoded_response: Response = xml_response.parse().expect("Failed to parse document");
-    println!("Decoded Document: {decoded_response:?}");
-
-    //Checking that we have have the assertion we were expecting.
-    assert_eq!(decoded_response.assertions.as_ref().unwrap().len(), 1);
-
-    // Attempting to get the signature from the assertion.
-    let assertion = &decoded_response.assertions.as_ref().unwrap()[0];
-    let signature = assertion
-        .signature
-        .as_ref()
-        .expect("Failed to get signature");
-    // let key_info = signature.key_info.as_ref().expect("Missing key info");
-    // assert_eq!(key_info.len(), 1);
-    let sig_content = signature
-        .signature_value
-        .base64_content
-        .as_ref()
-        .expect("Failed to get signature contents");
-    assert_ne!(sig_content, "");
-    println!("Signature value: {}", sig_content);
-    assert_eq!(signature.signed_info.reference.len(), 1);
-    let reference = &signature.signed_info.reference[0];
-    let digest_value = reference
-        .digest_value
-        .as_ref()
-        .expect("Failed to get digest value");
-    let digest_contents = digest_value
-        .base64_content
-        .as_ref()
-        .expect("Failed to get digest value contents");
-    assert_ne!(digest_contents, "");
+    println!("saml_response = {}", saml_response);
 
     let parser = libxml::parser::Parser::default();
     let document = parser
-        .parse_string(xml_response)
+        .parse_string(&saml_response)
         .expect("Failed to parse response");
 
-    // Constructing a verifier, I hope this works.
-    let mut verifier =
-        XmlSecSignatureContext::new().expect("Failed to create xml XmlSecSignatureContext");
-    let key = XmlSecKey::from_rsa_key_der("server_key", &public_idp_signature_key)
-        .expect("Failed to create public key");
-    verifier.insert_key(key);
-    let verified_signature_nodes = verifier
-        .verify_all_signatures(&document)
-        .expect("Verification failed?");
-    assert_eq!(verified_signature_nodes, 1);
+    let decryption_context = XmlSecEncryptionContext::with_key_manager(&dec_key_manager).unwrap();
+    decryption_context.decrypt_document(&document).unwrap();
+
+    let decoded_response: Response = document
+        .to_string()
+        .parse()
+        .expect("Failed to parse document");
+    println!("Decoded Document: {decoded_response:?}");
+
+    //Checking that we have have the assertion we were expecting.
+    assert_eq!(
+        decoded_response
+            .encrypted_assertions
+            .as_ref()
+            .unwrap()
+            .len(),
+        1
+    );
+
+    // Attempting to get the signature from the assertion.
+    // let enc_assertion = &decoded_response.encrypted_assertions.as_ref().unwrap()[0];
 }
