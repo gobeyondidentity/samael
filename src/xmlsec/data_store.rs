@@ -17,7 +17,10 @@ impl XmlSecKeyDataStore {
     }
 
     /// Allocate new instance of the xml data store.
-    pub fn new(id: xmlSecKeyDataStoreId) -> XmlSecResult<Self> {
+    ///
+    /// # Safety
+    /// Might crash if given a bad pointer.
+    pub unsafe fn new(id: xmlSecKeyDataStoreId) -> XmlSecResult<Self> {
         unsafe {
             let ptr = xmlSecKeyDataStoreCreate(id);
             if ptr.is_null() {

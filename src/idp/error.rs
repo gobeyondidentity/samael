@@ -34,6 +34,12 @@ pub enum Error {
     #[error("Missing encryption algorithms")]
     MissingEncryptionAlgo,
 
+    #[error("Missing encryption key")]
+    MissingEncryptionKey,
+
+    #[error("Missing encryption name")]
+    MissingEncryptionKeyName,
+
     #[error("Unknown algorithm {0}")]
     UnknownAlgorithm(String),
 

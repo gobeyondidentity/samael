@@ -6,6 +6,7 @@
 use crate::bindings as backend;
 
 #[cfg(xmlsec_static)]
+#[allow(clippy::module_inception)]
 mod backend {
     pub use crate::bindings::{
         xmlSecOpenSSLAppInit as xmlSecCryptoAppInit,

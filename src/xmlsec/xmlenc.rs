@@ -69,7 +69,7 @@ impl XmlSecEncryptionContext {
     /// document.
     pub fn encrypt_all_encrypted_assertions(&self, doc: &XmlDocument) -> XmlSecResult<()> {
         let xpath_context =
-            libxml::xpath::Context::new(&doc).map_err(|_| XmlSecError::XPathContextError)?;
+            libxml::xpath::Context::new(doc).map_err(|_| XmlSecError::XPathContextError)?;
         xpath_context
             .register_namespace("xenc", "http://www.w3.org/2001/04/xmlenc#")
             .map_err(|_| XmlSecError::XPathNamespaceError)?;
@@ -134,7 +134,7 @@ impl XmlSecEncryptionContext {
     /// Attempts to decrypt all encrypted nodes within a document.
     pub fn decrypt_document(&self, doc: &XmlDocument) -> XmlSecResult<()> {
         let xpath_context =
-            libxml::xpath::Context::new(&doc).map_err(|_| XmlSecError::XPathContextError)?;
+            libxml::xpath::Context::new(doc).map_err(|_| XmlSecError::XPathContextError)?;
         xpath_context
             .register_namespace("xenc", "http://www.w3.org/2001/04/xmlenc#")
             .map_err(|_| XmlSecError::XPathNamespaceError)?;
@@ -150,7 +150,7 @@ impl XmlSecEncryptionContext {
             unsafe {
                 let rc =
                     xmlSecEncCtxDecrypt(self.ctx, node.node_ptr() as crate::bindings::xmlNodePtr);
-                if rc != 0 || (*self.ctx).result == null_mut() {
+                if rc != 0 || (*self.ctx).result.is_null() {
                     return Err(XmlSecError::EncDecryptionFailed);
                 }
             }

@@ -63,15 +63,24 @@ impl XmlSecKey {
 
     /// Create from raw pointer to an underlying xmlsec key structure. Henceforth its lifetime will be managed by this
     /// object.
+    ///
+    /// # Safety
+    /// Takes owner ship of the pointer.
     pub unsafe fn from_ptr(ptr: *mut bindings::xmlSecKey) -> Self {
         Self(ptr)
     }
 
-    /// Leak the internal resource. This is needed by [`XmlSecSignatureContext`][sigctx], since xmlsec takes over the
-    /// lifetime management of the underlying resource when setting it as the active key for signature signing or
-    /// verification.
+    /// Leak the internal resource. This is needed by
+    /// [`XmlSecSignatureContext`][sigctx], since xmlsec takes over the lifetime
+    /// management of the underlying resource when setting it as the active key
+    /// for signature signing or verification.
     ///
     /// [sigctx]: struct.XmlSecSignatureContext.html
+    ///
+    /// # Safety
+    ///
+    /// This drops the key so it's possible to leak memory if you don't add the
+    /// key somewhere
     pub unsafe fn leak(key: Self) -> *mut bindings::xmlSecKey {
         let ptr = key.0;
 

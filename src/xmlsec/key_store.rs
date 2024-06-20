@@ -16,7 +16,10 @@ impl XmlSecKeyStore {
     }
 
     /// Create a new key store.
-    pub fn new(id: xmlSecKeyStoreId) -> XmlSecResult<Self> {
+    ///
+    /// # Safety
+    /// Will crash if given a bad pointer.
+    pub unsafe fn new(id: xmlSecKeyStoreId) -> XmlSecResult<Self> {
         unsafe {
             let ptr = xmlSecKeyStoreCreate(id);
             if ptr.is_null() {

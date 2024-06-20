@@ -42,7 +42,6 @@ impl TryFrom<&EncryptedKey> for Event<'_> {
         writer.write_event(event_data)?;
         writer.write_event(Event::End(BytesEnd::new(EncryptedKey::name())))?;
 
-
         Ok(Event::Text(BytesText::from_escaped(String::from_utf8(
             write_buf,
         )?)))

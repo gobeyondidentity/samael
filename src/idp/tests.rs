@@ -487,7 +487,6 @@ fn test_encrypted_assertions() {
     let encryption_keys = openssl::rsa::Rsa::generate(4096).unwrap();
     let public_key = encryption_keys.public_key_to_pem().unwrap();
     let public_encryption_key = openssl::rsa::Rsa::public_key_from_pem(&public_key).unwrap();
-    let public_idp_signature_key = signature_keys.public_key_to_der().unwrap();
 
     // Setting up a decryption context
     let dec_key_manager = XmlSecKeyManager::new().expect("Failed to create key manager");

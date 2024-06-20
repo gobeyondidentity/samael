@@ -138,7 +138,7 @@ impl XmlSecSignatureContext {
         self.key_is_set()?;
         // Creating an XPath to locate all of the
         let xpath_context =
-            libxml::xpath::Context::new(&doc).map_err(|_| XmlSecError::XPathContextError)?;
+            libxml::xpath::Context::new(doc).map_err(|_| XmlSecError::XPathContextError)?;
         xpath_context
             .register_namespace("dsig", "http://www.w3.org/2000/09/xmldsig#")
             .map_err(|_| XmlSecError::XPathNamespaceError)?;
@@ -212,7 +212,7 @@ impl XmlSecSignatureContext {
     pub fn verify_all_signatures(&self, doc: &XmlDocument) -> XmlSecResult<i32> {
         self.key_is_set()?;
         // Creating an XPath to locate all of the
-        let xpath_context = libxml::xpath::Context::new(&doc).expect("Failed to create XPath");
+        let xpath_context = libxml::xpath::Context::new(doc).expect("Failed to create XPath");
         xpath_context
             .register_namespace("dsig", "http://www.w3.org/2000/09/xmldsig#")
             .map_err(|_| XmlSecError::XPathNamespaceError)?;
