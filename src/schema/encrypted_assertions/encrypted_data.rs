@@ -35,16 +35,17 @@ impl TryFrom<&EncryptedData> for Event<'_> {
         root.push_attribute(("Type", "http://www.w3.org/2001/04/xmlenc#Element"));
 
         writer.write_event(Event::Start(root))?;
+        // Order matters here.
         let encryption_event: Event<'_> = (&value.method).try_into()?;
         writer.write_event(encryption_event)?;
-        let event_data: Event<'_> = (&value.encryption_cipher_data).try_into()?;
-        writer.write_event(event_data)?;
-
-        // Write key info
         for sig in value.signature_key_info.iter() {
             let sig_event: Event<'_> = sig.try_into()?;
             writer.write_event(sig_event)?;
         }
+
+        let event_data: Event<'_> = (&value.encryption_cipher_data).try_into()?;
+        writer.write_event(event_data)?;
+
         writer.write_event(Event::End(BytesEnd::new(EncryptedData::name())))?;
 
         Ok(Event::Text(BytesText::from_escaped(String::from_utf8(

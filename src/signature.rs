@@ -73,7 +73,7 @@ impl Signature {
     }
 
     pub fn xmlsec_signature_template(
-        ref_id: &str,
+        ref_id: Option<&str>,
         signature_algorithm: &str,
         digest_algorithm: &str,
     ) -> Self {
@@ -108,7 +108,7 @@ impl Signature {
                     digest_value: Some(DigestValue {
                         base64_content: Some("".to_string()),
                     }),
-                    uri: Some(format!("#{}", ref_id)),
+                    uri: ref_id.map(|ref_id| format!("#{}", ref_id)),
                     reference_type: None,
                     id: None,
                 }],

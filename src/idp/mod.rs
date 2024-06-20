@@ -1,25 +1,28 @@
 pub mod error;
-use self::error::Error;
-
 pub mod response_builder;
 pub mod sp_extractor;
-pub mod verified_request;
-
 #[cfg(test)]
 mod tests;
+pub mod verified_request;
 
-use crate::crypto::{self, sign_no_decl, sign_xml};
-use openssl::bn::{BigNum, MsbOption};
-use openssl::encrypt::Encrypter;
-use openssl::nid::Nid;
-use openssl::pkey::{Private, Public};
-use openssl::{asn1::Asn1Time, pkey, rsa::Rsa, x509};
-use std::str::FromStr;
-
+use self::error::Error;
+use crate::crypto;
 use crate::idp::response_builder::{build_response_template, ResponseAttribute};
-use crate::schema::{Assertion, EncryptedAssertion, Response};
+use crate::key_info::{KeyInfo, X509Data};
+use crate::schema::Response;
 use crate::signature::Signature;
 use crate::traits::ToXml;
+use crate::xmlsec::{
+    XmlDocument, XmlSecEncryptionContext, XmlSecError, XmlSecKey, XmlSecKeyManager,
+    XmlSecSignatureContext,
+};
+use lazy_static::lazy_static;
+use openssl::bn::{BigNum, MsbOption};
+use openssl::nid::Nid;
+use openssl::pkey::{Private, Public};
+use openssl::rand::rand_bytes;
+use openssl::{asn1::Asn1Time, pkey, rsa::Rsa, x509};
+use std::str::FromStr;
 
 pub struct IdentityProvider {
     encryption_key_name: Option<String>,
@@ -116,9 +119,6 @@ impl IdentityProvider {
     pub fn generate_response(
         &self,
         signature_params: Option<&CertificateParams>,
-        sign_assertions: bool,
-        encrypt_assertions: bool,
-        sign_envelope: bool,
         saml_response: Response,
     ) -> Result<String, Error> {
         // Getting the certificate if one is asked for.
@@ -128,16 +128,13 @@ impl IdentityProvider {
             None
         };
         let signature_key = self.private_key.private_key_to_der()?;
-        ResponseGenerator::new(
+        let mut generator = ResponseGenerator::new(
             self.encryption_key_name.clone(),
             self.assertion_encryption_key.clone(),
-            sign_assertions,
-            encrypt_assertions,
-            sign_envelope,
             cert,
             signature_key,
-        )
-        .generate_response(saml_response)
+        );
+        generator.generate_response(saml_response)
     }
 
     pub fn create_certificate(&self, params: &CertificateParams) -> Result<Vec<u8>, Error> {
@@ -216,138 +213,339 @@ struct ResponseGenerator {
     encrypt_assertions: bool,
     sign_envelope: bool,
     signing_certificate: Option<Vec<u8>>,
-    signature_key: Vec<u8>,
+    signature_key_der: Vec<u8>,
 }
 
 impl ResponseGenerator {
     pub fn new(
         encryption_key_name: Option<String>,
         assertion_encryption_key: Option<pkey::PKey<Public>>,
-        sign_assertions: bool,
-        encrypt_assertions: bool,
-        sign_envelope: bool,
         signing_certificate: Option<Vec<u8>>,
-        signature_key: Vec<u8>,
+        signature_key_der: Vec<u8>,
     ) -> Self {
         Self {
             encryption_key_name,
             assertion_encryption_key,
-            sign_assertions,
-            encrypt_assertions,
-            sign_envelope,
+            sign_assertions: false,
+            encrypt_assertions: false,
+            sign_envelope: false,
             signing_certificate,
-            signature_key,
+            signature_key_der,
         }
     }
 
-    pub fn generate_response(&self, mut saml_response: Response) -> Result<String, Error> {
-        // Step one: sign assertions.
+    // TODO: Remove mutability if we don't need it. We might only need to do a
+    // few things and we can use the boolean variables we are recording as local
+    // variables.
+    pub fn generate_response(&mut self, mut saml_response: Response) -> Result<String, Error> {
+        // Step 1: Do some inspection of the saml_response before we convert it
+        // into XML so we know what we need to do after we convert it into XML.
+
+        // Checking if we have any assertions with a signature.
+        self.sign_assertions = check_sign_assertions(&saml_response);
+
+        // Checking if we have any encrypted assertions.
+        self.encrypt_assertions = check_encrypt_assertions(&saml_response);
+
+        // Checking if the response needs a signature.
+        self.sign_envelope = check_sign_envelope(&saml_response);
+
+        if let Some(x509_cert) = self.signing_certificate.as_ref() {
+            self.update_x509_signatures(&mut saml_response, x509_cert)?;
+        } else if self.sign_assertions || self.sign_envelope {
+            // If we are configured for this and we don't have certificate
+            // parameters this is going to be problematic.
+            return Err(Error::MissingCert);
+        }
+
+        // Step 2: Converting the response into a template that can be processed
+        // more by xmlSec library.
+        let xml_string = saml_response.to_xml().map_err(Error::XmlGenerationError)?;
+
+        let parser = libxml::parser::Parser::default();
+        let xml_document = parser.parse_string(&xml_string)?;
+
+        let mut context = XmlSecSignatureContext::new()?;
+        if self.sign_assertions || self.sign_envelope {
+            let key = XmlSecKey::from_rsa_key_der("server_key", &self.signature_key_der)?;
+            context.insert_key(key);
+            // Updating the document with the correct hash value.
+            context.update_document_id_hash(&xml_document, "ID")?;
+        }
+
+        // Parse the xml into libxml2 format.
         if self.sign_assertions {
-            if let Some(cert) = self.signing_certificate.as_ref() {
-                if let Some(assertions) = saml_response.assertions.as_mut() {
-                    for assertion in assertions.iter_mut() {
-                        assertion.signature = Some(Signature::template(&assertion.id, cert));
-                    }
+            // Checking for key and returning an error.
+            context.sign_assertions(&xml_document)?;
+        }
+
+        // Handling assertion encryption.
+        if self.encrypt_assertions {
+            if let Some(encryption_key_name) = self.encryption_key_name.as_ref() {
+                if let Some(assertion_encryption_key) = self.assertion_encryption_key.as_ref() {
+                    let key = assertion_encryption_key.rsa()?.public_key_to_pem()?;
+                    encrypt_assertions(&xml_document, encryption_key_name.as_str(), &key)?;
                 } else {
-                    todo!("Create an error for missing assertions")
+                    todo!("Create error message here.")
                 }
             } else {
-                todo!("Need to create an error for asking for an assertion signature without having a cert")
+                todo!("Create error message here")
             }
         }
 
-        // Step two: encrypt assertions
-        if self.encrypt_assertions {
-            if let Some(encryption_key) = self.assertion_encryption_key.as_ref() {
-                let encrypted_assertions = if let Some(assertions) = saml_response.assertions.take()
-                {
-                    println!("Handling assertion encryption.");
-                    assertions
-                        .into_iter()
-                        .map(|assertion| {
-                            // TODO: Update the unwrap in order to enforce this as a precondition.
-                            self.generate_encrypted_assertions(
-                                self.encryption_key_name
-                                    .as_ref()
-                                    .map(|x| x.as_str())
-                                    .unwrap(),
-                                encryption_key,
-                                assertion,
-                            )
-                        })
-                        .collect::<Result<Vec<_>, Error>>()?
-                } else {
-                    todo!("Create an error for missing assertions")
-                };
-                saml_response.encrypted_assertions = Some(encrypted_assertions);
-            } else {
-                todo!("Make an error when asking for encrypted assertions without encryption key")
-            }
-        }
-
-        // Step three: update the new response with assertion changes if there
-        // are any.
-
-        // Generate signature template for envelope?
-
-        // Step four: sign the envelope.
+        // Signing document envelope.
         if self.sign_envelope {
-            todo!("implement envelope signing")
+            context.sign_document(&xml_document, None)?;
         }
-        // Step five: convert final Response XML into a Base64 encoded string
-        // and return that result.
+        // // Step five: convert final Response XML into a Base64 encoded string
+        // // and return that result.
 
-        todo!("generate response isn't implemented yet")
+        // todo!("generate response isn't implemented yet")
+        Ok(xml_document.to_string())
     }
 
-    fn generate_encrypted_assertions(
+    fn update_x509_signatures(
         &self,
-        encryption_key_name: &str,
-        encryption_key: &pkey::PKey<Public>,
-        assertion: Assertion,
-    ) -> Result<EncryptedAssertion, Error> {
-        // Step one: Check if we need to sign the assertion because that happens
-        // first.
-        let need_to_sign_assertions = assertion.signature.is_some();
-
-        // Step one: Generate XML with template in in order to sign the
-        // assertion.
-        let body = assertion.to_xml().map_err(Error::XmlGenerationError)?;
-        println!("What do we look like? {body}");
-        let body = if need_to_sign_assertions {
-            let ret = sign_no_decl(body.as_bytes(), &self.signature_key)?;
-            ret
-        } else {
-            body
-        };
-        println!("What do we look like? {body}");
-        // How to encrypt an AES key.
-        let mut encrypter = Encrypter::new(&encryption_key)?;
-        encrypter.set_rsa_padding(openssl::rsa::Padding::PKCS1_OAEP)?;
-        let buffer_len = encrypter.encrypt_len(body.as_bytes())?;
-        let mut encrypted = vec![0; buffer_len];
-        let encrypted_len = encrypter.encrypt(body.as_bytes(), &mut encrypted)?;
-        encrypted.truncate(encrypted_len);
-        let encrypted_data = String::from_utf8(encrypted).unwrap();
-        println!("Encrypted data: {encrypted_data}");
-        // let mut out_buffer = String::with_capacity(encryption_key.rsa()?.size() as usize);
-        // for _ in 0..encryption_key.rsa()?.size() {
-        //     out_buffer.push('\0');
-        // }
-        // println!("KeySize = {}", encryption_key.rsa()?.size());
-        // let encrypted_stuff_size = unsafe {
-        //     // let aes_key = openssl::aes::AesKey::new_encrypt(encryption_key.rsa()?.public_key_to_der()?)?
-        //     encryption_key.rsa()?.public_encrypt(
-        //         body.as_bytes(),
-        //         out_buffer.as_bytes_mut(),
-        //         ,
-        //     )?
-        // };
-        // out_buffer.shrink_to(encrypted_stuff_size);
-
-        // let encrypted_body = encryption_key.
-        // println!("Encrypted data = {}", out_buffer);
-
-        todo!()
+        saml_response: &mut Response,
+        x509_cert_der: &[u8],
+    ) -> Result<(), Error> {
+        let encoded_cert = crate::crypto::mime_encode_x509_cert(x509_cert_der);
+        saml_response
+            .signature
+            .as_mut()
+            .map(|sig| update_signature(&encoded_cert, sig));
+        saml_response
+            .encrypted_assertions
+            .iter_mut()
+            .for_each(|enc_assertions| {
+                enc_assertions.iter_mut().for_each(|x| {
+                    (&mut x.assertion)
+                        .signature
+                        .as_mut()
+                        .map(|sig| update_signature(&encoded_cert, sig));
+                })
+            });
+        saml_response.assertions.iter_mut().for_each(|x| {
+            x.iter_mut().for_each(|x| {
+                x.signature
+                    .as_mut()
+                    .map(|sig| update_signature(&encoded_cert, sig));
+            })
+        });
+        Ok(())
     }
+
+    // fn process_assertion_signing(
+    //     &mut self,
+    //     context: &XmlSecSignatureContext,
+    //     doc: &XmlDocument,
+    // ) -> Result<(), Error> {
+    //     Ok(())
+    // }
+    // fn generate_encrypted_assertions(
+    //     &self,
+    //     encryption_key_name: &str,
+    //     encryption_key: &pkey::PKey<Public>,
+    //     assertion: Assertion,
+    // ) -> Result<EncryptedAssertion, Error> {
+    //     // Step one: Check if we need to sign the assertion because that happens
+    //     // first.
+    //     let need_to_sign_assertions = assertion.signature.is_some();
+
+    //     // Step one: Generate XML with template in in order to sign the
+    //     // assertion.
+    //     let body = assertion.to_xml().map_err(Error::XmlGenerationError)?;
+    //     println!("What do we look like? {body}");
+    //     let body = if need_to_sign_assertions {
+    //         let ret = sign_no_decl(body.as_bytes(), &self.signature_key)?;
+    //         ret
+    //     } else {
+    //         body
+    //     };
+    //     println!("What do we look like? {body}");
+    //     // How to encrypt an AES key.
+    //     let mut encrypter = Encrypter::new(&encryption_key)?;
+    //     encrypter.set_rsa_padding(openssl::rsa::Padding::PKCS1_OAEP)?;
+    //     let buffer_len = encrypter.encrypt_len(body.as_bytes())?;
+    //     let mut encrypted = vec![0; buffer_len];
+    //     let encrypted_len = encrypter.encrypt(body.as_bytes(), &mut encrypted)?;
+    //     encrypted.truncate(encrypted_len);
+    //     let encrypted_data = String::from_utf8(encrypted).unwrap();
+    //     println!("Encrypted data: {encrypted_data}");
+    //     // let mut out_buffer = String::with_capacity(encryption_key.rsa()?.size() as usize);
+    //     // for _ in 0..encryption_key.rsa()?.size() {
+    //     //     out_buffer.push('\0');
+    //     // }
+    //     // println!("KeySize = {}", encryption_key.rsa()?.size());
+    //     // let encrypted_stuff_size = unsafe {
+    //     //     // let aes_key = openssl::aes::AesKey::new_encrypt(encryption_key.rsa()?.public_key_to_der()?)?
+    //     //     encryption_key.rsa()?.public_encrypt(
+    //     //         body.as_bytes(),
+    //     //         out_buffer.as_bytes_mut(),
+    //     //         ,
+    //     //     )?
+    //     // };
+    //     // out_buffer.shrink_to(encrypted_stuff_size);
+
+    //     // let encrypted_body = encryption_key.
+    //     // println!("Encrypted data = {}", out_buffer);
+
+    //     todo!()
+    // }
+}
+
+fn build_algo_to_key_map() -> std::collections::HashMap<String, usize> {
+    let mut ret = std::collections::HashMap::<String, usize>::new();
+    ret.insert(
+        "http://www.w3.org/2001/04/xmlenc#tripledes-cbc".to_string(),
+        21,
+    ); // 168 bits
+    ret.insert(
+        "http://www.w3.org/2001/04/xmlenc#aes128-cbc".to_string(),
+        128 / 8,
+    );
+    ret.insert(
+        "http://www.w3.org/2001/04/xmlenc#aes256-cbc".to_string(),
+        256 / 8,
+    );
+    ret.insert(
+        "http://www.w3.org/2009/xmlenc11#aes128-gcm".to_string(),
+        128 / 8,
+    );
+    ret.insert(
+        "http://www.w3.org/2001/04/xmlenc#aes192-cbc".to_string(),
+        192 / 8,
+    );
+    ret.insert(
+        "http://www.w3.org/2009/xmlenc11#aes192-gcm".to_string(),
+        192 / 8,
+    );
+    ret.insert(
+        "http://www.w3.org/2009/xmlenc11#aes256-gcm".to_string(),
+        256 / 8,
+    );
+    ret
+}
+
+lazy_static! {
+    static ref ALGO_TO_KEY_LEN_IN_BYTES: std::collections::HashMap<String, usize> =
+        build_algo_to_key_map();
+}
+
+/// Update the document with encrypted assertions.
+fn encrypt_assertions(
+    document: &XmlDocument,
+    key_name: &str,
+    public_encryption_key_pem: &[u8],
+) -> Result<(), Error> {
+    let key_manager = XmlSecKeyManager::new()?;
+    let sec_key = XmlSecKey::from_rsa_key_pem(key_name, &public_encryption_key_pem)?;
+    key_manager.adopt_key(sec_key)?;
+    let encryption_context: XmlSecEncryptionContext =
+        XmlSecEncryptionContext::with_key_manager(&key_manager)?;
+
+    let xpath_context =
+        libxml::xpath::Context::new(&document).map_err(|_| XmlSecError::XPathContextError)?;
+    xpath_context
+        .register_namespace("xenc", "http://www.w3.org/2001/04/xmlenc#")
+        .map_err(|_| XmlSecError::XPathNamespaceError)?;
+    xpath_context
+        .register_namespace("saml", "urn:oasis:names:tc:SAML:2.0:assertion")
+        .map_err(|_| XmlSecError::XPathNamespaceError)?;
+
+    let list_of_encryption_transformations = xpath_context
+        .evaluate("//saml:EncryptedAssertion/xenc:EncryptedData/xenc:EncryptionMethod/@Algorithm")
+        .map_err(|_| XmlSecError::XPathEvaluationError)?;
+    let algorithms = list_of_encryption_transformations.get_nodes_as_str();
+    if algorithms.is_empty() {
+        return Err(Error::MissingEncryptionAlgo);
+    }
+    let key_length_in_bytes = if algorithms.len() == 1 {
+        if let Some(bytes) = ALGO_TO_KEY_LEN_IN_BYTES.get(&algorithms[0]) {
+            *bytes
+        } else {
+            return Err(Error::UnknownAlgorithm(algorithms[0].clone()));
+        }
+    } else {
+        // NOTE: This isn't really a valid restriction because people don't use
+        // multiple assertions, and they don't normally use encrypted assertions
+        // for that matter, so if this every becomes an issue we can modify the
+        // xmlEnc bindings in order to change key and length between
+        // encryptions.
+        let expected_bytes = if let Some(bytes) = ALGO_TO_KEY_LEN_IN_BYTES.get(&algorithms[0]) {
+            bytes
+        } else {
+            return Err(Error::UnknownAlgorithm(algorithms[0].clone()));
+        };
+        for algo in algorithms.iter() {
+            if let Some(bytes) = ALGO_TO_KEY_LEN_IN_BYTES.get(algo) {
+                if bytes != expected_bytes {
+                    return Err(Error::AlgorithmKeySizesDontMatch);
+                }
+            } else {
+                return Err(Error::UnknownAlgorithm(algorithms[0].clone()));
+            };
+        }
+        *expected_bytes
+    };
+
+    // Need to locate all of the `<xenc:EncryptedAssertion>` and figure out what
+    // size key we need to use based on that and generate one of those instead?
+    let mut aes_key = Vec::with_capacity(key_length_in_bytes);
+    aes_key.resize(key_length_in_bytes, 0);
+    rand_bytes(&mut aes_key)?;
+
+    // Saving the encryption key that we are going to use.
+    encryption_context.set_key("encryption_key".to_string(), &aes_key)?;
+    encryption_context.encrypt_all_encrypted_assertions(document)?;
+
+    Ok(())
+    // todo!()
+}
+
+fn update_signature(encoded_certificate: &str, sig: &mut Signature) {
+    let key_info = if let Some(key_info) = sig.key_info.as_mut() {
+        key_info
+    } else {
+        sig.key_info = Some(Vec::<KeyInfo>::new());
+        // NOTE: Safe unwrap because I just set it on the line above.
+        sig.key_info.as_mut().unwrap()
+    };
+    if key_info.is_empty() {
+        return;
+    }
+    key_info.iter_mut().for_each(|ki| {
+        if ki.x509_data.is_none() {
+            ki.x509_data = Some(X509Data {
+                certificates: vec![encoded_certificate.to_string()],
+            })
+        }
+    });
+}
+
+// TODO: Consider refactoring this into a member functions of response.
+fn check_sign_assertions(saml_response: &Response) -> bool {
+    saml_response.assertions.iter().any(|assertions| {
+        assertions
+            .iter()
+            .any(|assertion| assertion.signature.is_some())
+    }) || saml_response
+        .encrypted_assertions
+        .iter()
+        .any(|enc_assertions| {
+            enc_assertions
+                .iter()
+                .any(|enc_assertion| enc_assertion.assertion.signature.is_some())
+        })
+}
+
+fn check_encrypt_assertions(saml_response: &Response) -> bool {
+    saml_response
+        .encrypted_assertions
+        .iter()
+        .any(|enc_assertions| !enc_assertions.is_empty())
+}
+
+fn check_sign_envelope(saml_response: &Response) -> bool {
+    saml_response.signature.is_some()
 }

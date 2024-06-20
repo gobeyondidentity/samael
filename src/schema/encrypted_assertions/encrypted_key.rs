@@ -31,15 +31,17 @@ impl TryFrom<&EncryptedKey> for Event<'_> {
         let root = BytesStart::new(EncryptedKey::name());
 
         writer.write_event(Event::Start(root))?;
+        if let Some(key_info) = value.key_info.as_ref() {
+            let event: Event<'_> = key_info.try_into()?;
+            writer.write_event(event)?;
+        }
+
         let encryption_event: Event<'_> = (&value.method).try_into()?;
         writer.write_event(encryption_event)?;
         let event_data: Event<'_> = (&value.encryption_cipher_data).try_into()?;
         writer.write_event(event_data)?;
         writer.write_event(Event::End(BytesEnd::new(EncryptedKey::name())))?;
-        if let Some(key_info) = value.key_info.as_ref() {
-            let event: Event<'_> = key_info.try_into()?;
-            writer.write_event(event)?;
-        }
+
 
         Ok(Event::Text(BytesText::from_escaped(String::from_utf8(
             write_buf,

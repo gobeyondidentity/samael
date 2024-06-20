@@ -1,5 +1,7 @@
 use thiserror::Error;
 
+use crate::xmlsec::XmlSecError;
+
 #[derive(Debug, Error)]
 pub enum Error {
     #[error("Missing signature")]
@@ -29,13 +31,24 @@ pub enum Error {
     #[error("Missing request issuer")]
     MissingAuthnRequestIssuer,
 
+    #[error("Missing encryption algorithms")]
+    MissingEncryptionAlgo,
+
+    #[error("Unknown algorithm {0}")]
+    UnknownAlgorithm(String),
+
+    #[error("Mismatched algorithm key sizes")]
+    AlgorithmKeySizesDontMatch,
+
     #[error(transparent)]
     XmlGenerationError(Box<dyn std::error::Error>),
-    // #[error(transparent)]
-    // QuickXmlError(#[from] quick_xml::Error),
 
-    // #[error(transparent)]
-    // Utf8ConversionError(Utf8Error),
+    #[error("Encountered an error parsing generated XML document {error}")]
+    XmlDocumentParsingError {
+        #[from]
+        error: libxml::parser::XmlParseError,
+    },
+
     #[error("Invalid AuthnRequest: {}", error)]
     InvalidAuthnRequest {
         #[from]
@@ -53,4 +66,10 @@ pub enum Error {
         #[from]
         error: crate::crypto::Error,
     },
+
+    #[error("Missing Certificate")]
+    MissingCert,
+
+    #[error(transparent)]
+    XmlSecError(#[from] XmlSecError),
 }

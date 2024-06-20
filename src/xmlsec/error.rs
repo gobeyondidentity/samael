@@ -30,11 +30,17 @@ pub enum XmlSecError {
 
     SigningError,
     VerifyError,
+
+    XmlDocumentErr {
+        msg: String,
+    },
+
     XPathNamespaceError,
     XPathContextError,
     XPathEvaluationError,
     EncMissingTemplateRootElement,
     EncWhileEncryptingXml,
+    EncDecryptionFailed,
 
     SecCreateBufferError,
     SecBufferAppendError,
@@ -47,6 +53,11 @@ pub enum XmlSecError {
     KeyInfoContextCreateFailure,
     KeyStoreCreateFailure,
     KeyDataStoreCreateFailure,
+
+    MismatchedNumberOfNodesAndTemplates {
+        node_count: usize,
+        template_count: usize,
+    },
 }
 
 impl std::fmt::Display for XmlSecError {
@@ -90,6 +101,8 @@ impl std::fmt::Display for XmlSecError {
             Self::EncWhileEncryptingXml => {
                 write!(fmt, "An error occurred while encrypting XML with template")
             }
+            Self::EncDecryptionFailed => write!(fmt, "Decryption failed"),
+
             Self::SecCreateBufferError => write!(fmt, "Failed to allocate memory for buffer"),
             Self::SecBufferAppendError => write!(fmt, "Failed to append to buffer"),
             Self::SecKeyReadBufferError => write!(fmt, "Failed to read key from buffer"),
@@ -104,6 +117,11 @@ impl std::fmt::Display for XmlSecError {
             Self::KeyInfoContextCreateFailure => write!(fmt, "Failed to create key info context"),
             Self::KeyStoreCreateFailure => write!(fmt, "Failed to create key store"),
             Self::KeyDataStoreCreateFailure => write!(fmt, "Failed to create a key data store"),
+            Self::XmlDocumentErr { msg } => write!(fmt, "Failed to access document: {}", msg),
+            Self::MismatchedNumberOfNodesAndTemplates {
+                node_count,
+                template_count,
+            } => write!(fmt, "Mismatched number of nodes to encrypt and template encryption patterns, number of nodes: {} Number of templates: {}", node_count, template_count),
         }
     }
 }

@@ -1,8 +1,11 @@
+use super::XmlDocument;
 use super::XmlSecError;
 use super::XmlSecKeyManager;
 use super::XmlSecResult;
 use crate::bindings::xmlSecOpenSSLKeyDataAesGetKlass;
-use crate::bindings::{self, xmlSecEncCtxXmlEncrypt, xmlSecKeyReadMemory, xmlSecKeySetName};
+use crate::bindings::{
+    self, xmlSecEncCtxDecrypt, xmlSecEncCtxXmlEncrypt, xmlSecKeyReadMemory, xmlSecKeySetName,
+};
 use std::ptr::null_mut;
 
 /// XmlSecEncryptionContext used for encrypting some or all of an XML document.
@@ -62,6 +65,29 @@ impl XmlSecEncryptionContext {
         Ok(())
     }
 
+    /// Encrypts all of the encrypted_assertion's assertion nodes within a
+    /// document.
+    pub fn encrypt_all_encrypted_assertions(&self, doc: &XmlDocument) -> XmlSecResult<()> {
+        let xpath_context =
+            libxml::xpath::Context::new(&doc).map_err(|_| XmlSecError::XPathContextError)?;
+        xpath_context
+            .register_namespace("xenc", "http://www.w3.org/2001/04/xmlenc#")
+            .map_err(|_| XmlSecError::XPathNamespaceError)?;
+        xpath_context
+            .register_namespace("saml", "urn:oasis:names:tc:SAML:2.0:assertion")
+            .map_err(|_| XmlSecError::XPathNamespaceError)?;
+
+        let to_transform = xpath_context
+            .evaluate("//saml:EncryptedAssertion/saml:Assertion")
+            .map_err(|_| XmlSecError::XPathEvaluationError)?;
+
+        let template_nodes = xpath_context
+            .evaluate("//saml:EncryptedAssertion/xenc:EncryptedData")
+            .map_err(|_| XmlSecError::XPathEvaluationError)?;
+
+        self.encrypt_all_node_pairs(to_transform, template_nodes)
+    }
+
     /// Attempts to locate all of the encryption nodes within a document and use
     /// them in order to encrypt and transform them. ALl changes should be
     /// present within the provided document after evaluation.
@@ -73,27 +99,59 @@ impl XmlSecEncryptionContext {
     ///
     /// encryption_template - The xml document that is applied to the node to
     ///     encrypt them.
-    pub fn encrypt_all_nodes(
+    pub fn encrypt_all_node_pairs(
         &self,
         nodes_to_encrypt: libxml::xpath::Object,
         encryption_template_nodes: libxml::xpath::Object,
     ) -> XmlSecResult<()> {
         let nodes_to_encrypt_vec = nodes_to_encrypt.get_nodes_as_vec();
         let encryption_template_node = encryption_template_nodes.get_nodes_as_vec();
-        assert_eq!(nodes_to_encrypt_vec.len(), encryption_template_node.len());
-        unsafe {
-            for (node, template) in nodes_to_encrypt_vec
-                .iter()
-                .zip(encryption_template_node.iter())
-            {
+        if nodes_to_encrypt_vec.len() != encryption_template_node.len() {
+            return Err(XmlSecError::MismatchedNumberOfNodesAndTemplates {
+                node_count: nodes_to_encrypt_vec.len(),
+                template_count: encryption_template_node.len(),
+            });
+        }
+        for (node, template) in nodes_to_encrypt_vec
+            .iter()
+            .zip(encryption_template_node.iter())
+        {
+            // println!("node", node.to_string)
+            unsafe {
                 let res = xmlSecEncCtxXmlEncrypt(
                     self.ctx,
                     template.node_ptr() as crate::bindings::xmlNodePtr,
                     node.node_ptr() as crate::bindings::xmlNodePtr,
                 );
                 if res != 0 {
-                    println!("Error number: {}", res);
                     return Err(XmlSecError::EncWhileEncryptingXml);
+                }
+            }
+        }
+        Ok(())
+    }
+
+    /// Attempts to decrypt all encrypted nodes within a document.
+    pub fn decrypt_document(&self, doc: &XmlDocument) -> XmlSecResult<()> {
+        let xpath_context =
+            libxml::xpath::Context::new(&doc).map_err(|_| XmlSecError::XPathContextError)?;
+        xpath_context
+            .register_namespace("xenc", "http://www.w3.org/2001/04/xmlenc#")
+            .map_err(|_| XmlSecError::XPathNamespaceError)?;
+        xpath_context
+            .register_namespace("saml", "urn:oasis:names:tc:SAML:2.0:assertion")
+            .map_err(|_| XmlSecError::XPathNamespaceError)?;
+        // xpath_context.regi
+        let encrypted_nodes = xpath_context
+            .evaluate("//saml:EncryptedAssertion/xenc:EncryptedData")
+            .map_err(|_| XmlSecError::XPathEvaluationError)?;
+        let encrypted_nodes = encrypted_nodes.get_nodes_as_vec();
+        for node in encrypted_nodes.iter() {
+            unsafe {
+                let rc =
+                    xmlSecEncCtxDecrypt(self.ctx, node.node_ptr() as crate::bindings::xmlNodePtr);
+                if rc != 0 || (*self.ctx).result == null_mut() {
+                    return Err(XmlSecError::EncDecryptionFailed);
                 }
             }
         }
@@ -109,11 +167,10 @@ impl Drop for XmlSecEncryptionContext {
 
 #[cfg(test)]
 mod test {
-    use std::io::Write;
+    use openssl::rand::rand_bytes;
 
     use super::super::*;
     use super::*;
-    use openssl::rand::rand_bytes;
 
     #[test]
     fn test_encryption_context() {
@@ -121,14 +178,18 @@ mod test {
         let rsa_key = openssl::rsa::Rsa::generate(4096).expect("Failed to create rsa keys");
 
         // Setting up A key manager.
-        let key_manager = XmlSecKeyManager::new().expect("Failed to create key manager");
-        let public_key_pem = rsa_key.public_key_to_der().unwrap();
-        let sec_key = XmlSecKey::from_public_rsa_key_pem("test_name", &public_key_pem).unwrap();
-        std::io::stdout().flush().unwrap();
-        key_manager.adopt_key(sec_key).unwrap();
+        let enc_key_manager = XmlSecKeyManager::new().expect("Failed to create key manager");
+        let public_key_pem = rsa_key.public_key_to_pem().unwrap();
+        let enc_sec_key = XmlSecKey::from_rsa_key_pem("test_name", &public_key_pem).unwrap();
+        enc_key_manager.adopt_key(enc_sec_key).unwrap();
+
+        let dec_key_manager = XmlSecKeyManager::new().expect("Failed to create key manager");
+        let private_key_pem = rsa_key.private_key_to_pem().unwrap();
+        let dec_sec_key = XmlSecKey::from_rsa_key_pem("test_name", &private_key_pem).unwrap();
+        dec_key_manager.adopt_key(dec_sec_key).unwrap();
 
         let encryption_context: XmlSecEncryptionContext =
-            XmlSecEncryptionContext::with_key_manager(&key_manager).unwrap();
+            XmlSecEncryptionContext::with_key_manager(&enc_key_manager).unwrap();
 
         let parser = libxml::parser::Parser::default();
         let saml_response = parser.parse_string(r#"
@@ -139,17 +200,17 @@ mod test {
   </samlp:Status>
   <saml:EncryptedAssertion>
     <xenc:EncryptedData xmlns:xenc="http://www.w3.org/2001/04/xmlenc#" xmlns:dsig="http://www.w3.org/2000/09/xmldsig#" Type="http://www.w3.org/2001/04/xmlenc#Element">
-    <xenc:EncryptionMethod Algorithm="http://www.w3.org/2001/04/xmlenc#aes128-cbc"/>
-    <dsig:KeyInfo>
-        <xenc:EncryptedKey>
-            <xenc:EncryptionMethod Algorithm="http://www.w3.org/2001/04/xmlenc#rsa-1_5"/>
-            <dsig:KeyInfo>
-                <dsig:KeyName/>
-            </dsig:KeyInfo>
-            <xenc:CipherData>
-                <xenc:CipherValue/>
-            </xenc:CipherData>
-        </xenc:EncryptedKey>
+        <xenc:EncryptionMethod Algorithm="http://www.w3.org/2001/04/xmlenc#aes128-cbc"/>
+        <dsig:KeyInfo>
+            <xenc:EncryptedKey>
+                <xenc:EncryptionMethod Algorithm="http://www.w3.org/2001/04/xmlenc#rsa-1_5"/>
+                <dsig:KeyInfo>
+                    <dsig:KeyName/>
+                </dsig:KeyInfo>
+                <xenc:CipherData>
+                    <xenc:CipherValue/>
+                </xenc:CipherData>
+            </xenc:EncryptedKey>
         </dsig:KeyInfo>
         <xenc:CipherData>
             <xenc:CipherValue/>
@@ -216,7 +277,7 @@ mod test {
             "Number of things to transform! {}",
             template_nodes_nodes.len()
         );
-        let mut aes_key = [0; 128 / 8];
+        let mut aes_key = [0; 256 / 8];
         rand_bytes(&mut aes_key).unwrap();
 
         encryption_context
@@ -224,9 +285,16 @@ mod test {
             .expect("Failed to set key");
         println!("Made it to here 2");
         encryption_context
-            .encrypt_all_nodes(to_transform, template_nodes)
+            .encrypt_all_node_pairs(to_transform, template_nodes)
             .expect("Failed to visit all of the nodes");
+        // encryption_context.
         println!("Made it pas the end of encryption context");
+        println!("saml_response = {}", saml_response);
+
+        let decryption_context =
+            XmlSecEncryptionContext::with_key_manager(&dec_key_manager).unwrap();
+        decryption_context.decrypt_document(&saml_response).unwrap();
+        // Attempting to decrypt the document.
         println!("saml_response = {}", saml_response);
     }
 }
