@@ -46,8 +46,8 @@ pub enum Error {
     #[error("Mismatched algorithm key sizes")]
     AlgorithmKeySizesDontMatch,
 
-    #[error(transparent)]
-    XmlGenerationError(Box<dyn std::error::Error>),
+    #[error("{0}")]
+    XmlGenerationError(String),
 
     #[error("Encountered an error parsing generated XML document {error}")]
     XmlDocumentParsingError {

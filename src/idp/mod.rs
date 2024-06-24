@@ -251,7 +251,9 @@ impl ResponseGenerator {
 
         // Step 2: Converting the response into a template that can be processed
         // more by xmlSec library.
-        let xml_string = saml_response.to_xml().map_err(Error::XmlGenerationError)?;
+        let xml_string = saml_response
+            .to_xml()
+            .map_err(|x| Error::XmlGenerationError(x.to_string()))?;
 
         let parser = libxml::parser::Parser::default();
         let xml_document = parser.parse_string(&xml_string)?;
