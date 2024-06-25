@@ -51,11 +51,13 @@ const NAME: &str = "saml2:Subject";
 const SCHEMA: (&str, &str) = ("xmlns:saml2", "urn:oasis:names:tc:SAML:2.0:assertion");
 
 #[derive(Clone, Debug, Deserialize, Hash, Eq, PartialEq, Ord, PartialOrd, Builder)]
-#[builder(setter(strip_option, into))]
+#[builder(setter(into))]
 pub struct Subject {
     #[serde(rename = "NameID")]
+    #[builder(default)]
     pub name_id: Option<SubjectNameID>,
     #[serde(rename = "SubjectConfirmation")]
+    #[builder(default)]
     pub subject_confirmations: Option<Vec<SubjectConfirmation>>,
 }
 
@@ -95,12 +97,14 @@ impl TryFrom<&Subject> for Event<'_> {
 }
 
 #[derive(Clone, Debug, Deserialize, Hash, Eq, PartialEq, Ord, PartialOrd, Builder)]
-#[builder(setter(strip_option, into))]
+#[builder(setter(into))]
 pub struct SubjectNameID {
     #[serde(rename = "@Format")]
+    #[builder(default)]
     pub format: Option<String>,
 
     #[serde(rename = "$value")]
+    #[builder(default)]
     pub value: String,
 }
 
@@ -142,13 +146,16 @@ impl TryFrom<&SubjectNameID> for Event<'_> {
 const SUBJECT_CONFIRMATION_NAME: &str = "saml2:SubjectConfirmation";
 
 #[derive(Clone, Debug, Deserialize, Hash, Eq, PartialEq, Ord, PartialOrd, Builder)]
-#[builder(setter(strip_option, into))]
+#[builder(setter(into))]
 pub struct SubjectConfirmation {
     #[serde(rename = "@Method")]
+    #[builder(default)]
     pub method: Option<String>,
     #[serde(rename = "NameID")]
+    #[builder(default)]
     pub name_id: Option<SubjectNameID>,
     #[serde(rename = "SubjectConfirmationData")]
+    #[builder(default)]
     pub subject_confirmation_data: Option<SubjectConfirmationData>,
 }
 
@@ -189,19 +196,25 @@ impl TryFrom<&SubjectConfirmation> for Event<'_> {
 const SUBJECT_CONFIRMATION_DATA_NAME: &str = "saml2:SubjectConfirmationData";
 
 #[derive(Clone, Debug, Deserialize, Hash, Eq, PartialEq, Ord, PartialOrd, Builder)]
-#[builder(setter(strip_option, into))]
+#[builder(setter(into))]
 pub struct SubjectConfirmationData {
     #[serde(rename = "@NotBefore")]
+    #[builder(default)]
     pub not_before: Option<chrono::DateTime<Utc>>,
     #[serde(rename = "@NotOnOrAfter")]
+    #[builder(default)]
     pub not_on_or_after: Option<chrono::DateTime<Utc>>,
     #[serde(rename = "@Recipient")]
+    #[builder(default)]
     pub recipient: Option<String>,
     #[serde(rename = "@InResponseTo")]
+    #[builder(default)]
     pub in_response_to: Option<String>,
     #[serde(rename = "@Address")]
+    #[builder(default)]
     pub address: Option<String>,
     #[serde(rename = "$value")]
+    #[builder(default)]
     pub content: Option<String>,
 }
 

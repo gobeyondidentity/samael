@@ -19,24 +19,34 @@ pub struct Response {
     #[serde(rename = "@ID")]
     pub id: String,
     #[serde(rename = "@InResponseTo")]
+    #[builder(default)]
     pub in_response_to: Option<String>,
     #[serde(rename = "@Version")]
+    #[builder(default)]
     pub version: String,
     #[serde(rename = "@IssueInstant")]
+    #[builder(default)]
     pub issue_instant: DateTime<Utc>,
     #[serde(rename = "@Destination")]
+    #[builder(default)]
     pub destination: Option<String>,
     #[serde(rename = "@Consent")]
+    #[builder(default)]
     pub consent: Option<String>,
     #[serde(rename = "Issuer")]
+    #[builder(default)]
     pub issuer: Option<Issuer>,
     #[serde(rename = "Signature")]
+    #[builder(default)]
     pub signature: Option<Signature>,
     #[serde(rename = "Status")]
+    #[builder(default)]
     pub status: Option<Status>,
     #[serde(rename = "EncryptedAssertion")]
+    #[builder(default)]
     pub encrypted_assertions: Option<Vec<EncryptedAssertion>>,
     #[serde(rename = "Assertion")]
+    #[builder(default)]
     pub assertions: Option<Vec<Assertion>>,
 }
 

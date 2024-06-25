@@ -1,8 +1,15 @@
+pub mod response_verifier;
+
+use libxml::parser::XmlParseError;
+use openssl::error::ErrorStack;
+pub use response_verifier::*;
+
 use crate::crypto;
 use crate::crypto::reduce_xml_to_signed;
 use crate::metadata::{Endpoint, IndexedEndpoint, KeyDescriptor, NameIdFormat, SpSsoDescriptor};
 use crate::schema::{Assertion, Response};
 use crate::traits::ToXml;
+use crate::xmlsec::XmlSecError;
 use crate::{
     key_info::{KeyInfo, X509Data},
     metadata::{ContactPerson, EncryptionMethod, EntityDescriptor, HTTP_POST_BINDING},
@@ -16,14 +23,21 @@ use openssl::pkey::Private;
 use openssl::{rsa, x509};
 use std::fmt::Debug;
 use std::io::Write;
+use std::string::FromUtf8Error;
 use thiserror::Error;
 use url::Url;
 
 #[cfg(test)]
 mod tests;
 
-#[derive(Debug, Error, PartialEq)]
+#[derive(Debug, Error)]
 pub enum Error {
+    #[error("Failed to locate 'SAMLResponse' inside of HTML form")]
+    HtmlFormMissingSamlResponse,
+
+    #[error("Multiple 'SAMLResponse' form elements where located")]
+    ToManySamlResponses,
+
     #[error(
         "SAML response destination does not match SP ACS URL. {:?} != {:?}",
         response_destination,
@@ -90,6 +104,27 @@ pub enum Error {
 
     #[error("SLO url is missing")]
     MissingSloUrl,
+
+    #[error("Response verifier is missing public signature key")]
+    MissingIdPPublicSignatureKey,
+
+    #[error("Response is missing signatures")]
+    ResponseMissingSignatures,
+
+    #[error("XML parsing error {0}")]
+    XmlParsingError(#[from] XmlParseError),
+
+    #[error("XmlSecError {0}")]
+    XmlSecError(#[from] XmlSecError),
+
+    #[error("OpeenSSL error: {0}")]
+    StackError(#[from] ErrorStack),
+
+    #[error(transparent)]
+    Utf8Error(#[from] FromUtf8Error),
+
+    #[error(transparent)]
+    SamlResponseParsingError(#[from] crate::schema::Error),
 }
 
 #[derive(Builder, Clone)]

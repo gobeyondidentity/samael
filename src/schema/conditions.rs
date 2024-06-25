@@ -7,17 +7,22 @@ use std::io::Cursor;
 const NAME: &str = "saml2:Conditions";
 
 #[derive(Clone, Debug, Deserialize, Hash, Eq, PartialEq, Ord, PartialOrd, Builder)]
-#[builder(setter(into, strip_option))]
+#[builder(setter(into))]
 pub struct Conditions {
     #[serde(rename = "@NotBefore")]
+    #[builder(default)]
     pub not_before: Option<DateTime<Utc>>,
     #[serde(rename = "@NotOnOrAfter")]
+    #[builder(default)]
     pub not_on_or_after: Option<DateTime<Utc>>,
     #[serde(rename = "AudienceRestriction", default)]
+    #[builder(default)]
     pub audience_restrictions: Option<Vec<AudienceRestriction>>,
     #[serde(rename = "OneTimeUse")]
+    #[builder(default)]
     pub one_time_use: Option<OneTimeUse>,
     #[serde(rename = "ProxyRestriction")]
+    #[builder(default)]
     pub proxy_restriction: Option<ProxyRestriction>,
 }
 
@@ -114,12 +119,14 @@ pub struct OneTimeUse {}
 const PROXY_RESTRICTION_NAME: &str = "saml2:ProxyRestriction";
 
 #[derive(Clone, Debug, Deserialize, Hash, Eq, PartialEq, Ord, PartialOrd, Builder)]
-#[builder(setter(into, strip_option))]
+#[builder(setter(into))]
 
 pub struct ProxyRestriction {
     #[serde(rename = "@Count")]
+    #[builder(default)]
     pub count: Option<usize>,
     #[serde(rename = "Audience")]
+    #[builder(default)]
     pub audiences: Option<Vec<String>>,
 }
 

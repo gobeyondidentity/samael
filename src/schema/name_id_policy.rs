@@ -6,13 +6,16 @@ use std::io::Cursor;
 const NAME: &str = "saml2p:NameIDPolicy";
 
 #[derive(Clone, Debug, Deserialize, Default, Hash, Eq, PartialEq, Ord, PartialOrd, Builder)]
-#[builder(default, setter(into, strip_option))]
+#[builder(default, setter(into))]
 pub struct NameIdPolicy {
     #[serde(rename = "@Format")]
+    #[builder(default)]
     pub format: Option<String>,
     #[serde(rename = "@SPNameQualifier")]
+    #[builder(default)]
     pub sp_name_qualifier: Option<String>,
     #[serde(rename = "@AllowCreate")]
+    #[builder(default)]
     pub allow_create: Option<bool>,
 }
 

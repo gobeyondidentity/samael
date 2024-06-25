@@ -116,7 +116,6 @@ impl XmlSecEncryptionContext {
             .iter()
             .zip(encryption_template_node.iter())
         {
-            // println!("node", node.to_string)
             unsafe {
                 let res = xmlSecEncCtxXmlEncrypt(
                     self.ctx,
@@ -269,31 +268,19 @@ mod test {
             .expect("Failed to query for encrypted data nodes");
 
         let nodes = to_transform.get_nodes_as_vec();
-        println!("Number of matches: {}", nodes.len());
         assert_eq!(nodes.len(), 1);
-        let template_nodes_nodes = template_nodes.get_nodes_as_vec();
-        println!(
-            "Number of things to transform! {}",
-            template_nodes_nodes.len()
-        );
         let mut aes_key = [0; 256 / 8];
         rand_bytes(&mut aes_key).unwrap();
 
         encryption_context
             .set_key("test_key".to_string(), &aes_key)
             .expect("Failed to set key");
-        println!("Made it to here 2");
         encryption_context
             .encrypt_all_node_pairs(to_transform, template_nodes)
             .expect("Failed to visit all of the nodes");
-        // encryption_context.
-        println!("Made it pas the end of encryption context");
-        println!("saml_response = {}", saml_response);
 
         let decryption_context =
             XmlSecEncryptionContext::with_key_manager(&dec_key_manager).unwrap();
         decryption_context.decrypt_document(&saml_response).unwrap();
-        // Attempting to decrypt the document.
-        println!("saml_response = {}", saml_response);
     }
 }
