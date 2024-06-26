@@ -14,6 +14,7 @@ pub use libxml::tree::document::Document as XmlDocument;
 #[doc(hidden)]
 pub use libxml::tree::node::Node as XmlNode;
 
+mod add_id_attributes;
 mod backend;
 mod data_store;
 mod error;
@@ -26,6 +27,7 @@ mod xmlenc;
 mod xmlsec_internal;
 
 // exports
+pub use self::add_id_attributes::*;
 pub use self::data_store::*;
 pub use self::error::XmlSecError;
 pub use self::error::XmlSecResult;

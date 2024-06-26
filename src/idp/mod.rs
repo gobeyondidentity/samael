@@ -258,16 +258,14 @@ impl ResponseGenerator {
         let parser = libxml::parser::Parser::default();
         let xml_document = parser.parse_string(&xml_string)?;
 
-        let mut context = XmlSecSignatureContext::new()?;
-        if sign_assertions || sign_envelope {
+        // Parse the xml into libxml2 format.
+        if sign_assertions {
+            let mut context = XmlSecSignatureContext::new()?;
             let key = XmlSecKey::from_rsa_key_der("server_key", &self.signature_key_der)?;
             context.insert_key(key);
             // Updating the document with the correct hash value.
             context.update_document_id_hash(&xml_document, "ID")?;
-        }
 
-        // Parse the xml into libxml2 format.
-        if sign_assertions {
             // Checking for key and returning an error.
             context.sign_assertions(&xml_document)?;
         }
@@ -288,7 +286,13 @@ impl ResponseGenerator {
 
         // Signing document envelope.
         if sign_envelope {
-            context.sign_document(&xml_document, None)?;
+            let mut context = XmlSecSignatureContext::new()?;
+            let key = XmlSecKey::from_rsa_key_der("server_key", &self.signature_key_der)?;
+            context.insert_key(key);
+            if !sign_assertions {
+                context.update_document_id_hash(&xml_document, "ID")?;
+            }
+            context.sign_document_only(&xml_document)?;
         }
 
         Ok(xml_document.to_string())

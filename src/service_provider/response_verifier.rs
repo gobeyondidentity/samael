@@ -2,7 +2,8 @@ use super::Error;
 use crate::{
     schema::Response,
     xmlsec::{
-        XmlSecEncryptionContext, XmlSecError, XmlSecKey, XmlSecKeyManager, XmlSecSignatureContext,
+        xml_sec_app_add_id_attr, XmlSecEncryptionContext, XmlSecError, XmlSecKey, XmlSecKeyManager,
+        XmlSecSignatureContext,
     },
 };
 use libxml::parser::Parser;
@@ -39,7 +40,7 @@ impl ResponseVerifier {
             return Err(Error::HtmlFormMissingSamlResponse);
         }
         if nodes.len() > 1 {
-            return Err(Error::ToManySamlResponses);
+            return Err(Error::TooManySamlResponses);
         }
         self.verify_from_base64(nodes[0].as_str())
     }
@@ -51,9 +52,59 @@ impl ResponseVerifier {
         self.verify_saml_response(&doc_str)
     }
 
-    fn verify_saml_response(&self, xml_doc_str: &str) -> Result<Response, Error> {
+    /// Verifies an XML document string.
+    pub fn verify_saml_response(&self, xml_doc_str: &str) -> Result<Response, Error> {
         let parser = Parser::default();
         let saml_response_document = parser.parse_string(xml_doc_str)?;
+
+        // Verifying document only.
+        let xpath_context = libxml::xpath::Context::new(&saml_response_document)
+            .map_err(|_| XmlSecError::XPathContextError)?;
+        xpath_context
+            .register_namespace("dsig", "http://www.w3.org/2000/09/xmldsig#")
+            .map_err(|_| XmlSecError::XPathNamespaceError)?;
+        xpath_context
+            .register_namespace("samlp", "urn:oasis:names:tc:SAML:2.0:protocol")
+            .map_err(|_| XmlSecError::XPathNamespaceError)?;
+        xpath_context
+            .register_namespace("samla", "urn:oasis:names:tc:SAML:2.0:assertion")
+            .map_err(|_| XmlSecError::XPathNamespaceError)?;
+
+        if let Some(idp_signature_key) = self.idp_public_signature_key.as_ref() {
+            let document_signature_node = xpath_context
+                .evaluate("//samlp:Response/dsig:Signature")
+                .map_err(|_| XmlSecError::XPathEvaluationError)?;
+            unsafe {
+                // TODO: Fix the unwraps here.
+                let node_name = std::ffi::CString::new("Response")?;
+                let attr_name = std::ffi::CString::new("ID")?;
+                let ns_href = std::ffi::CString::new("urn:oasis:names:tc:SAML:2.0:protocol")?;
+                xml_sec_app_add_id_attr(
+                    saml_response_document
+                        .get_root_element()
+                        .unwrap()
+                        .node_ptr() as crate::bindings::xmlNodePtr,
+                    &attr_name,
+                    &node_name,
+                    ns_href.as_ptr() as *const crate::bindings::xmlChar,
+                )?;
+            }
+            let document_signature_node = document_signature_node.get_nodes_as_vec();
+            if document_signature_node.len() > 1 {
+                return Err(Error::TooManyDocumentSignatures);
+            }
+            for signature_node in document_signature_node.into_iter() {
+                let mut verifier = XmlSecSignatureContext::new()?;
+
+                let signature_key = idp_signature_key.rsa()?.public_key_to_pem()?;
+                let key = XmlSecKey::from_rsa_key_pem("server_key", &signature_key)?;
+                verifier.insert_key(key);
+
+                if !verifier.verify_node(&signature_node)? {
+                    return Err(Error::InvalidDocumentSignature);
+                }
+            }
+        }
 
         // Step one: is to decrypt any encrypted assertions within the document.
         if let Some(decryption_key) = self.sp_private_encryption_key.as_ref() {
@@ -73,19 +124,36 @@ impl ResponseVerifier {
             decryption_context.decrypt_document(&saml_response_document)?;
         }
 
-        // Step two: Validating all signatures within the document.
+        // Step three: Validating all assertion signatures
         if let Some(idp_signature_key) = self.idp_public_signature_key.as_ref() {
-            let mut verifier = XmlSecSignatureContext::new()?;
-            let signatue_key = idp_signature_key.rsa()?.public_key_to_pem()?;
-            let key = XmlSecKey::from_rsa_key_pem("server_key", &signatue_key)?;
-            verifier.insert_key(key);
-            let verified_signature_nodes =
-                verifier.verify_all_signatures(&saml_response_document)?;
-            if self.enforce_at_least_one_signature && verified_signature_nodes == 0 {
-                return Err(Error::ResponseMissingSignatures);
+            unsafe {
+                let node_name = std::ffi::CString::new("Assertion")?;
+                let attr_name = std::ffi::CString::new("ID")?;
+                let ns_href = std::ffi::CString::new("urn:oasis:names:tc:SAML:2.0:assertion")?;
+                xml_sec_app_add_id_attr(
+                    saml_response_document
+                        .get_root_element()
+                        .unwrap()
+                        .node_ptr() as crate::bindings::xmlNodePtr,
+                    &attr_name,
+                    &node_name,
+                    ns_href.as_ptr() as *const crate::bindings::xmlChar,
+                )?;
             }
-        } else if self.enforce_at_least_one_signature {
-            return Err(Error::MissingIdPPublicSignatureKey);
+            let assertions_signature_nodes = xpath_context
+                .evaluate("//samla:Assertion/dsig:Signature")
+                .map_err(|_| XmlSecError::XPathEvaluationError)?;
+            let assertions_signature_nodes = assertions_signature_nodes.get_nodes_as_vec();
+            for signature_node in assertions_signature_nodes.iter() {
+                let mut verifier = XmlSecSignatureContext::new()?;
+                let signature_key = idp_signature_key.rsa()?.public_key_to_pem()?;
+                let key = XmlSecKey::from_rsa_key_pem("server_key", &signature_key)?;
+                verifier.insert_key(key);
+
+                if !verifier.verify_node(&signature_node)? {
+                    return Err(Error::InvalidAssertionSignature);
+                }
+            }
         }
         // Parse the current document using serde, into a SAML response that we
         // can be assured that a document was processed correctly.

@@ -29,6 +29,8 @@ pub enum XmlSecError {
     NotASignatureNode,
 
     SigningError,
+    TooManySignatureNodesError,
+    MissingDocumentSignature,
     VerifyError,
 
     XmlDocumentErr {
@@ -58,6 +60,8 @@ pub enum XmlSecError {
         node_count: usize,
         template_count: usize,
     },
+
+    SecInvalidIdCollectionNode,
 }
 
 impl std::fmt::Display for XmlSecError {
@@ -91,6 +95,13 @@ impl std::fmt::Display for XmlSecError {
             Self::SigningError => {
                 write!(fmt, "An error has ocurred while attemting to sign document")
             }
+            Self::TooManySignatureNodesError => {
+                write!(fmt, "Too many document signatures nodes located within the document")
+            }
+
+            Self::MissingDocumentSignature => {
+                write!(fmt, "Missing document signature node")
+            }
             Self::VerifyError => write!(fmt, "Verification failed"),
             Self::XPathNamespaceError => write!(fmt, "Failed to register XPath namespace"),
             Self::XPathContextError => write!(fmt, "Failed to construct an XPath context"),
@@ -122,6 +133,9 @@ impl std::fmt::Display for XmlSecError {
                 node_count,
                 template_count,
             } => write!(fmt, "Mismatched number of nodes to encrypt and template encryption patterns, number of nodes: {} Number of templates: {}", node_count, template_count),
+            Self::SecInvalidIdCollectionNode => {
+                write!(fmt, "The provided starting nod is null")
+            }
         }
     }
 }

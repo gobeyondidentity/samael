@@ -36,7 +36,10 @@ pub enum Error {
     HtmlFormMissingSamlResponse,
 
     #[error("Multiple 'SAMLResponse' form elements where located")]
-    ToManySamlResponses,
+    TooManySamlResponses,
+
+    #[error("Too many document signatures located")]
+    TooManyDocumentSignatures,
 
     #[error(
         "SAML response destination does not match SP ACS URL. {:?} != {:?}",
@@ -108,8 +111,11 @@ pub enum Error {
     #[error("Response verifier is missing public signature key")]
     MissingIdPPublicSignatureKey,
 
-    #[error("Response is missing signatures")]
-    ResponseMissingSignatures,
+    #[error("Received an invalid document signature.")]
+    InvalidDocumentSignature,
+
+    #[error("Received an invalid assertion signature.")]
+    InvalidAssertionSignature,
 
     #[error("XML parsing error {0}")]
     XmlParsingError(#[from] XmlParseError),
@@ -125,6 +131,9 @@ pub enum Error {
 
     #[error(transparent)]
     SamlResponseParsingError(#[from] crate::schema::Error),
+
+    #[error(transparent)]
+    NulError(#[from] std::ffi::NulError),
 }
 
 #[derive(Builder, Clone)]
