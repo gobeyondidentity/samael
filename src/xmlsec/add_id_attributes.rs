@@ -1,63 +1,6 @@
 use super::{XmlSecError, XmlSecResult};
 use crate::bindings::*;
 use std::ptr::{null, null_mut};
-// static int
-// xmlSecAppAddIDAttr(xmlNodePtr node, const xmlChar* attrName, const xmlChar* nodeName, const xmlChar* nsHref) {
-//     xmlAttrPtr attr, tmpAttr;
-//     xmlNodePtr cur;
-//     xmlChar* id;
-
-//     if((node == NULL) || (attrName == NULL) || (nodeName == NULL)) {
-//         return(-1);
-//     }
-
-//     /* process children first because it does not matter much but does simplify code */
-//     cur = xmlSecGetNextElementNode(node->children);
-//     while(cur != NULL) {
-//         if(xmlSecAppAddIDAttr(cur, attrName, nodeName, nsHref) < 0) {
-//             return(-1);
-//         }
-//         cur = xmlSecGetNextElementNode(cur->next);
-//     }
-
-//     /* node name must match */
-//     if(!xmlStrEqual(node->name, nodeName)) {
-//         return(0);
-//     }
-
-//     /* if nsHref is set then it also should match */
-//     if((nsHref != NULL) && (node->ns != NULL) && (!xmlStrEqual(nsHref, node->ns->href))) {
-//         return(0);
-//     }
-
-//     /* the attribute with name equal to attrName should exist */
-//     for(attr = node->properties; attr != NULL; attr = attr->next) {
-//         if(xmlStrEqual(attr->name, attrName)) {
-//             break;
-//         }
-//     }
-//     if(attr == NULL) {
-//         return(0);
-//     }
-
-//     /* and this attr should have a value */
-//     id = xmlNodeListGetString(node->doc, attr->children, 1);
-//     if(id == NULL) {
-//         return(0);
-//     }
-
-//     /* check that we don't have same ID already */
-//     tmpAttr = xmlGetID(node->doc, id);
-//     if(tmpAttr == NULL) {
-//         xmlAddID(NULL, node->doc, id, attr);
-//     } else if(tmpAttr != attr) {
-//         fprintf(stderr, "Error: duplicate ID attribute \"%s\"\n", id);
-//         xmlFree(id);
-//         return(-1);
-//     }
-//     xmlFree(id);
-//     return(0);
-// }
 
 /// Update the document with any/all ID attributes so that XPointer evaluation
 /// works.

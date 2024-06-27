@@ -36,7 +36,3 @@ impl Drop for XmlSecKeyDataStore {
         unsafe { xmlSecKeyDataStoreDestroy(self.ptr) }
     }
 }
-// #define	xmlSecKeyDataStoreGetName()
-// #define	xmlSecKeyDataStoreIsValid()
-// #define	xmlSecKeyDataStoreCheckId()
-// #define	xmlSecKeyDataStoreCheckSize()
