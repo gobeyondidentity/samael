@@ -10,6 +10,9 @@ use chrono::Utc;
 use super::sp_extractor::RequiredAttribute;
 use crate::crypto;
 
+#[derive(Default, Debug, Clone)]
+pub struct ResponseConstructor {}
+
 fn build_conditions(audience: &str) -> Conditions {
     Conditions {
         not_before: None,
@@ -130,17 +133,16 @@ fn build_response(
                 value: Some("urn:oasis:names:tc:SAML:2.0:status:Success".to_string()),
             },
             status_message: None,
-            status_detail: None,
         }),
-        encrypted_assertion: None,
-        assertion: Some(build_assertion(
+        encrypted_assertions: Vec::new(),
+        assertions: vec![build_assertion(
             name_id,
             request_id,
             issuer,
             destination,
             audience,
             attributes,
-        )),
+        )],
     }
 }
 

@@ -8,33 +8,46 @@ use std::io::Cursor;
 use std::str::FromStr;
 use thiserror::Error;
 
+use super::EncryptedAssertion;
+
 const NAME: &str = "saml2p:Response";
 const SCHEMA: (&str, &str) = ("xmlns:saml2p", "urn:oasis:names:tc:SAML:2.0:protocol");
 
-#[derive(Clone, Debug, Deserialize, Hash, Eq, PartialEq, Ord, PartialOrd)]
+#[derive(Clone, Debug, Deserialize, Hash, Eq, PartialEq, Ord, PartialOrd, Builder)]
+#[builder(setter(into))]
 pub struct Response {
     #[serde(rename = "@ID")]
     pub id: String,
     #[serde(rename = "@InResponseTo")]
+    #[builder(default)]
     pub in_response_to: Option<String>,
     #[serde(rename = "@Version")]
+    #[builder(default)]
     pub version: String,
     #[serde(rename = "@IssueInstant")]
+    #[builder(default)]
     pub issue_instant: DateTime<Utc>,
     #[serde(rename = "@Destination")]
+    #[builder(default)]
     pub destination: Option<String>,
     #[serde(rename = "@Consent")]
+    #[builder(default)]
     pub consent: Option<String>,
     #[serde(rename = "Issuer")]
+    #[builder(default)]
     pub issuer: Option<Issuer>,
     #[serde(rename = "Signature")]
+    #[builder(default)]
     pub signature: Option<Signature>,
     #[serde(rename = "Status")]
+    #[builder(default)]
     pub status: Option<Status>,
-    #[serde(rename = "EncryptedAssertion")]
-    pub encrypted_assertion: Option<String>,
-    #[serde(rename = "Assertion")]
-    pub assertion: Option<Assertion>,
+    #[serde(default, rename = "EncryptedAssertion")]
+    #[builder(default)]
+    pub encrypted_assertions: Vec<EncryptedAssertion>,
+    #[serde(default, rename = "Assertion")]
+    #[builder(default)]
+    pub assertions: Vec<Assertion>,
 }
 
 #[derive(Debug, Error)]
@@ -106,15 +119,16 @@ impl TryFrom<&Response> for Event<'_> {
             writer.write_event(event)?;
         }
 
-        if let Some(assertion) = &value.assertion {
+        for assertion in value.assertions.iter() {
             let event: Event<'_> = assertion.try_into()?;
             writer.write_event(event)?;
         }
 
-        // TODO: encrypted assertion
-        // if let Some(assertion) = &self.encrypted_assertion {
-        //     writer.write(assertion.to_xml()?.as_bytes())?;
-        // }
+        // Handling encrypted assertions.
+        for assertion in value.encrypted_assertions.iter() {
+            let event: Event<'_> = assertion.try_into()?;
+            writer.write_event(event)?;
+        }
 
         writer.write_event(Event::End(BytesEnd::new(NAME)))?;
         Ok(Event::Text(BytesText::from_escaped(String::from_utf8(

@@ -1,35 +1,59 @@
 use thiserror::Error;
 
+use crate::xmlsec::XmlSecError;
+
 #[derive(Debug, Error)]
 pub enum Error {
-    #[error("")]
+    #[error("Missing signature")]
     NoSignature,
-    #[error("")]
+    #[error("Missing KeyInfo")]
     NoKeyInfo,
-    #[error("")]
+    #[error("Missing certificate")]
     NoCertificate,
-    #[error("")]
+    #[error("Missing service provider SSO descriptors")]
     NoSPSsoDescriptors,
-    #[error("")]
+    #[error("Failed to generate signature")]
     SignatureFailed,
-    #[error("")]
-    UnexpectedError,
-    #[error("")]
+    #[error("certificate mismatch")]
     MismatchedCertificate,
-    #[error("")]
+    #[error("invalid certificate encoding")]
     InvalidCertificateEncoding,
 
-    #[error("")]
+    #[error("Missing audience from response.")]
     MissingAudience,
-    #[error("")]
+    #[error("Missing ACS url from response")]
     MissingAcsUrl,
-    #[error("")]
+    #[error("Non-http POST bindings are not supported")]
     NonHttpPostBindingUnsupported,
 
-    #[error("")]
+    #[error("Missing subject name ID")]
     MissingAuthnRequestSubjectNameID,
-    #[error("")]
+    #[error("Missing request issuer")]
     MissingAuthnRequestIssuer,
+
+    #[error("Missing encryption algorithms")]
+    MissingEncryptionAlgo,
+
+    #[error("Missing encryption key")]
+    MissingEncryptionKey,
+
+    #[error("Missing encryption name")]
+    MissingEncryptionKeyName,
+
+    #[error("Unknown algorithm {0}")]
+    UnknownAlgorithm(String),
+
+    #[error("Mismatched algorithm key sizes")]
+    AlgorithmKeySizesDontMatch,
+
+    #[error("{0}")]
+    XmlGenerationError(String),
+
+    #[error("Encountered an error parsing generated XML document {error}")]
+    XmlDocumentParsingError {
+        #[from]
+        error: libxml::parser::XmlParseError,
+    },
 
     #[error("Invalid AuthnRequest: {}", error)]
     InvalidAuthnRequest {
@@ -48,4 +72,10 @@ pub enum Error {
         #[from]
         error: crate::crypto::Error,
     },
+
+    #[error("Missing Certificate")]
+    MissingCert,
+
+    #[error(transparent)]
+    XmlSecError(#[from] XmlSecError),
 }

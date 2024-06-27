@@ -11,7 +11,7 @@ use super::XmlSecResult;
 use std::os::raw::c_uchar;
 use std::ptr::{null, null_mut};
 
-/// Signature signing/veryfying context
+/// Signature signing/verifying context
 pub struct XmlSecSignatureContext {
     ctx: *mut bindings::xmlSecDSigCtx,
 }
@@ -62,14 +62,20 @@ impl XmlSecSignatureContext {
         }
     }
 
-    /// Takes a [`XmlDocument`][xmldoc] and attempts to sign it. For this to work it has to have a properly structured
-    /// `<dsig:Signature>` node within, and a XmlSecKey must have been previously set with [`insert_key`][inskey].
+    /// Takes a [`XmlDocument`][xmldoc] and attempts to sign it. For this to
+    /// work it has to have a properly structured `<dsig:Signature>` node
+    /// within, and a XmlSecKey must have been previously set with
+    /// [`insert_key`][inskey].
+    ///
+    /// if you previously called `update_document_id_hash` you don't need to
+    /// provide `id_attr`.
     ///
     /// # Errors
     ///
     /// If key has not been previously set or document is malformed.
     ///
-    /// [xmldoc]: http://kwarc.github.io/rust-libxml/libxml/tree/document/struct.Document.html
+    /// [xmldoc]:
+    ///     http://kwarc.github.io/rust-libxml/libxml/tree/document/struct.Document.html
     /// [inskey]: struct.XmlSecSignatureContext.html#method.insert_key
     pub fn sign_document(&self, doc: &XmlDocument, id_attr: Option<&str>) -> XmlSecResult<()> {
         self.key_is_set()?;
@@ -99,6 +105,98 @@ impl XmlSecSignatureContext {
 
         let signode = find_signode(root_ptr)?;
         self.sign_node_raw(signode)
+    }
+
+    /// Locates and explicitly signs only the document.
+    pub fn sign_document_only(&self, doc: &XmlDocument) -> XmlSecResult<()> {
+        self.key_is_set()?;
+        // Creating an XPath to locate all of the
+        let xpath_context =
+            libxml::xpath::Context::new(doc).map_err(|_| XmlSecError::XPathContextError)?;
+        xpath_context
+            .register_namespace("dsig", "http://www.w3.org/2000/09/xmldsig#")
+            .map_err(|_| XmlSecError::XPathNamespaceError)?;
+        xpath_context
+            .register_namespace("saml2p", "urn:oasis:names:tc:SAML:2.0:protocol")
+            .map_err(|_| XmlSecError::XPathNamespaceError)?;
+
+        let doc_signature_node = xpath_context
+            .evaluate("//saml2p:Response/dsig:Signature")
+            .map_err(|_| XmlSecError::XPathEvaluationError)?;
+
+        let signature_nodes = doc_signature_node.get_nodes_as_vec();
+        if signature_nodes.is_empty() {
+            return Err(XmlSecError::MissingDocumentSignature);
+        }
+        if signature_nodes.len() != 1 {
+            return Err(XmlSecError::TooManySignatureNodesError);
+        }
+        // let mut node = signature_nodes[0];
+        for mut to_sign in signature_nodes.into_iter() {
+            self.sign_node_raw(
+                to_sign
+                    .node_ptr_mut()
+                    .map_err(|msg| XmlSecError::XmlDocumentErr { msg })?
+                    as *mut bindings::xmlNode,
+            )?;
+        }
+        Ok(())
+    }
+
+    /// This should be called before everything else is so we don't update this
+    /// multiple time, but all it does is walk all of the elements of the tree
+    /// searching for ID's and adds all attributes from the ids list to the doc
+    /// document IDs attributes hash.
+    pub fn update_document_id_hash(&self, doc: &XmlDocument, id_attr: &str) -> XmlSecResult<()> {
+        let doc_ptr = doc.doc_ptr();
+        let root = if let Some(root) = doc.get_root_element() {
+            root
+        } else {
+            return Err(XmlSecError::RootNotFound);
+        };
+
+        let root_ptr = root.node_ptr() as *mut bindings::xmlNode;
+        let cid = std::ffi::CString::new(id_attr).map_err(|_| XmlSecError::InvalidInputString)?;
+
+        unsafe {
+            let mut list = [cid.as_bytes().as_ptr(), null()];
+            bindings::xmlSecAddIDs(
+                doc_ptr as *mut bindings::xmlDoc,
+                root_ptr,
+                list.as_mut_ptr(),
+            );
+        }
+        Ok(())
+    }
+
+    /// Locates and signs all assertions within the document.
+    pub fn sign_assertions(&self, doc: &XmlDocument) -> XmlSecResult<()> {
+        self.key_is_set()?;
+        // Creating an XPath to locate all of the
+        let xpath_context =
+            libxml::xpath::Context::new(doc).map_err(|_| XmlSecError::XPathContextError)?;
+        xpath_context
+            .register_namespace("dsig", "http://www.w3.org/2000/09/xmldsig#")
+            .map_err(|_| XmlSecError::XPathNamespaceError)?;
+        xpath_context
+            .register_namespace("saml", "urn:oasis:names:tc:SAML:2.0:assertion")
+            .map_err(|_| XmlSecError::XPathNamespaceError)?;
+
+        let assertion_signature_nodes = xpath_context
+            .evaluate("//saml:Assertion/dsig:Signature")
+            .map_err(|_| XmlSecError::XPathEvaluationError)?;
+
+        let signature_nodes = assertion_signature_nodes.get_nodes_as_vec();
+        // Attempting to sign all assertion nodes.
+        for mut to_sign in signature_nodes.into_iter() {
+            self.sign_node_raw(
+                to_sign
+                    .node_ptr_mut()
+                    .map_err(|msg| XmlSecError::XmlDocumentErr { msg })?
+                    as *mut bindings::xmlNode,
+            )?;
+        }
+        Ok(())
     }
 
     /// Takes a [`XmlDocument`][xmldoc] and attempts to verify its signature. For this to work it has to have a properly
@@ -139,6 +237,34 @@ impl XmlSecSignatureContext {
 
         let signode = find_signode(root_ptr)?;
         self.verify_node_raw(signode)
+    }
+
+    /// This is to help with testing, but it attempts to verify all of the
+    /// signatures within a document and returns the number of verified
+    /// signatures.
+    ///
+    /// you should call `update_document_id_hash` before calling this if you
+    /// need to verify the ID hash.
+    ///
+    /// WARNING ONLY WORKS WITH A SINGLE SIGNATURE WITHIN A DOCUMENT.
+    pub fn verify_any_signatures(&self, doc: &XmlDocument) -> XmlSecResult<i32> {
+        self.key_is_set()?;
+        // Creating an XPath to locate all of the
+        let xpath_context = libxml::xpath::Context::new(doc).expect("Failed to create XPath");
+        xpath_context
+            .register_namespace("dsig", "http://www.w3.org/2000/09/xmldsig#")
+            .map_err(|_| XmlSecError::XPathNamespaceError)?;
+
+        let assertion_signature_nodes = xpath_context
+            .evaluate("//dsig:Signature")
+            .map_err(|_| XmlSecError::XPathEvaluationError)?;
+
+        let signature_nodes = assertion_signature_nodes.get_nodes_as_vec();
+        // Attempting to sign all assertion nodes.
+        for to_verify in signature_nodes.iter() {
+            self.verify_node(to_verify)?;
+        }
+        Ok(signature_nodes.len() as i32)
     }
 
     /// Takes a `<dsig:Signature>` [`Node`][xmlnode] and attempts to verify it. For this to work, a XmlSecKey must have
@@ -223,3 +349,4 @@ fn find_signode(tree: *mut bindings::xmlNode) -> XmlSecResult<*mut bindings::xml
 
     Ok(signode)
 }
+

@@ -7,9 +7,10 @@ pub mod metadata;
 pub mod schema;
 pub mod service_provider;
 pub mod signature;
+pub mod util;
+pub mod xmlsec;
 
-mod xmlsec;
-
+pub use util::*;
 mod traits;
 
 #[macro_use]

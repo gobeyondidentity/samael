@@ -6,17 +6,23 @@ use std::io::Cursor;
 const NAME: &str = "saml2:Issuer";
 const SCHEMA: (&str, &str) = ("xmlns:saml2", "urn:oasis:names:tc:SAML:2.0:assertion");
 
-#[derive(Clone, Debug, Deserialize, Default, Hash, Eq, PartialEq, Ord, PartialOrd)]
+#[derive(Clone, Debug, Deserialize, Default, Hash, Eq, PartialEq, Ord, PartialOrd, Builder)]
+#[builder(setter(into))]
 pub struct Issuer {
     #[serde(rename = "@NameQualifier")]
+    #[builder(default)]
     pub name_qualifier: Option<String>,
     #[serde(rename = "@SPNameQualifier")]
+    #[builder(default)]
     pub sp_name_qualifier: Option<String>,
     #[serde(rename = "@Format")]
+    #[builder(default)]
     pub format: Option<String>,
     #[serde(rename = "@SPProvidedID")]
+    #[builder(default)]
     pub sp_provided_id: Option<String>,
     #[serde(rename = "$value")]
+    #[builder(default)]
     pub value: Option<String>,
 }
 

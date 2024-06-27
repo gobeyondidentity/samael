@@ -1,8 +1,15 @@
+pub mod response_verifier;
+
+use libxml::parser::XmlParseError;
+use openssl::error::ErrorStack;
+pub use response_verifier::*;
+
 use crate::crypto;
 use crate::crypto::reduce_xml_to_signed;
 use crate::metadata::{Endpoint, IndexedEndpoint, KeyDescriptor, NameIdFormat, SpSsoDescriptor};
 use crate::schema::{Assertion, Response};
 use crate::traits::ToXml;
+use crate::xmlsec::XmlSecError;
 use crate::{
     key_info::{KeyInfo, X509Data},
     metadata::{ContactPerson, EncryptionMethod, EntityDescriptor, HTTP_POST_BINDING},
@@ -16,14 +23,24 @@ use openssl::pkey::Private;
 use openssl::{rsa, x509};
 use std::fmt::Debug;
 use std::io::Write;
+use std::string::FromUtf8Error;
 use thiserror::Error;
 use url::Url;
 
 #[cfg(test)]
 mod tests;
 
-#[derive(Debug, Error, PartialEq)]
+#[derive(Debug, Error)]
 pub enum Error {
+    #[error("Failed to locate 'SAMLResponse' inside of HTML form")]
+    HtmlFormMissingSamlResponse,
+
+    #[error("Multiple 'SAMLResponse' form elements where located")]
+    TooManySamlResponses,
+
+    #[error("Too many document signatures located")]
+    TooManyDocumentSignatures,
+
     #[error(
         "SAML response destination does not match SP ACS URL. {:?} != {:?}",
         response_destination,
@@ -90,6 +107,33 @@ pub enum Error {
 
     #[error("SLO url is missing")]
     MissingSloUrl,
+
+    #[error("Response verifier is missing public signature key")]
+    MissingIdPPublicSignatureKey,
+
+    #[error("Received an invalid document signature.")]
+    InvalidDocumentSignature,
+
+    #[error("Received an invalid assertion signature.")]
+    InvalidAssertionSignature,
+
+    #[error("XML parsing error {0}")]
+    XmlParsingError(#[from] XmlParseError),
+
+    #[error("XmlSecError {0}")]
+    XmlSecError(#[from] XmlSecError),
+
+    #[error("OpeenSSL error: {0}")]
+    StackError(#[from] ErrorStack),
+
+    #[error(transparent)]
+    Utf8Error(#[from] FromUtf8Error),
+
+    #[error(transparent)]
+    SamlResponseParsingError(#[from] crate::schema::Error),
+
+    #[error(transparent)]
+    NulError(#[from] std::ffi::NulError),
 }
 
 #[derive(Builder, Clone)]
@@ -169,6 +213,7 @@ impl ServiceProvider {
                     x509_data: Some(X509Data {
                         certificates: vec![general_purpose::STANDARD.encode(&cert_bytes)],
                     }),
+                    key_name: None,
                 },
             });
             key_descriptors.push(KeyDescriptor {
@@ -178,6 +223,7 @@ impl ServiceProvider {
                     x509_data: Some(X509Data {
                         certificates: vec![general_purpose::STANDARD.encode(&cert_bytes)],
                     }),
+                    key_name: None,
                 },
                 encryption_methods: Some(vec![
                     EncryptionMethod {
@@ -308,7 +354,7 @@ impl ServiceProvider {
         &self,
         encoded_resp: &str,
         possible_request_ids: Option<&[&str]>,
-    ) -> Result<Assertion, Box<dyn std::error::Error>> {
+    ) -> Result<Vec<Assertion>, Box<dyn std::error::Error>> {
         let bytes = general_purpose::STANDARD.decode(encoded_resp)?;
         let decoded = std::str::from_utf8(&bytes)?;
         let assertion = self.parse_xml_response(decoded, possible_request_ids)?;
@@ -319,7 +365,7 @@ impl ServiceProvider {
         &self,
         response_xml: &str,
         possible_request_ids: Option<&[&str]>,
-    ) -> Result<Assertion, Error> {
+    ) -> Result<Vec<Assertion>, Error> {
         let reduced_xml = if let Some(sign_certs) = self.idp_signing_certs()? {
             reduce_xml_to_signed(response_xml, &sign_certs)
                 .map_err(|_e| Error::FailedToValidateSignature)?
@@ -375,11 +421,13 @@ impl ServiceProvider {
             }
         }
 
-        if let Some(_encrypted_assertion) = &response.encrypted_assertion {
+        if !response.encrypted_assertions.is_empty() {
             Err(Error::EncryptedAssertionsNotYetSupported)
-        } else if let Some(assertion) = &response.assertion {
-            self.validate_assertion(assertion, possible_request_ids)?;
-            Ok(assertion.clone())
+        } else if !response.assertions.is_empty() {
+            for assertion in response.assertions.iter() {
+                self.validate_assertion(assertion, possible_request_ids)?;
+            }
+            Ok(response.assertions.clone())
         } else {
             Err(Error::UnexpectedError)
         }

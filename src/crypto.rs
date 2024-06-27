@@ -6,7 +6,7 @@ use std::str::FromStr;
 use thiserror::Error;
 
 use crate::xmlsec::{self, XmlSecKey, XmlSecKeyFormat, XmlSecSignatureContext};
-use libxml::parser::Parser as XmlParser;
+use libxml::{parser::Parser as XmlParser, tree::SaveOptions};
 
 const XMLNS_XML_DSIG: &str = "http://www.w3.org/2000/09/xmldsig#";
 const XMLNS_SIGVER: &str = "urn:urn-5:08Z8lPlI4JVjifINTfCtfelirUo";
@@ -71,6 +71,24 @@ pub fn sign_xml<Bytes: AsRef<[u8]>>(xml: Bytes, private_key_der: &[u8]) -> Resul
     Ok(document.to_string())
 }
 
+pub fn sign_no_decl<Bytes: AsRef<[u8]>>(
+    xml: Bytes,
+    private_key_der: &[u8],
+) -> Result<String, Error> {
+    let parser = XmlParser::default();
+    let document = parser.parse_string(xml)?;
+
+    let key = XmlSecKey::from_memory(private_key_der, XmlSecKeyFormat::Der)?;
+    let mut context = XmlSecSignatureContext::new()?;
+    context.insert_key(key);
+
+    context.sign_document(&document, Some("ID"))?;
+
+    Ok(document.to_string_with_options(SaveOptions {
+        no_declaration: true,
+        ..Default::default()
+    }))
+}
 pub fn verify_signed_xml<Bytes: AsRef<[u8]>>(
     xml: Bytes,
     x509_cert_der: &[u8],
