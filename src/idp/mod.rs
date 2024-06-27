@@ -309,25 +309,18 @@ impl ResponseGenerator {
             .as_mut()
             .iter_mut()
             .for_each(|sig| update_signature(&encoded_cert, sig));
-        saml_response
-            .encrypted_assertions
-            .iter_mut()
-            .for_each(|enc_assertions| {
-                enc_assertions.iter_mut().for_each(|x| {
-                    x.assertion
-                        .signature
-                        .as_mut()
-                        .iter_mut()
-                        .for_each(|sig| update_signature(&encoded_cert, sig));
-                })
-            });
+        saml_response.encrypted_assertions.iter_mut().for_each(|x| {
+            x.assertion
+                .signature
+                .as_mut()
+                .iter_mut()
+                .for_each(|sig| update_signature(&encoded_cert, sig));
+        });
         saml_response.assertions.iter_mut().for_each(|x| {
-            x.iter_mut().for_each(|x| {
-                x.signature
-                    .as_mut()
-                    .iter_mut()
-                    .for_each(|sig| update_signature(&encoded_cert, sig));
-            })
+            x.signature
+                .as_mut()
+                .iter_mut()
+                .for_each(|sig| update_signature(&encoded_cert, sig));
         });
         Ok(())
     }
@@ -337,7 +330,7 @@ fn build_algo_to_key_map() -> std::collections::HashMap<String, usize> {
     let mut ret = std::collections::HashMap::<String, usize>::new();
     ret.insert(
         "http://www.w3.org/2001/04/xmlenc#tripledes-cbc".to_string(),
-        21,
+        168 / 8,
     ); // 168 bits
     ret.insert(
         "http://www.w3.org/2001/04/xmlenc#aes128-cbc".to_string(),
@@ -462,25 +455,18 @@ fn update_signature(encoded_certificate: &str, sig: &mut Signature) {
 
 // TODO: Consider refactoring this into a member functions of response.
 fn check_sign_assertions(saml_response: &Response) -> bool {
-    saml_response.assertions.iter().any(|assertions| {
-        assertions
-            .iter()
-            .any(|assertion| assertion.signature.is_some())
-    }) || saml_response
-        .encrypted_assertions
+    saml_response
+        .assertions
         .iter()
-        .any(|enc_assertions| {
-            enc_assertions
-                .iter()
-                .any(|enc_assertion| enc_assertion.assertion.signature.is_some())
-        })
+        .any(|assertion| assertion.signature.is_some())
+        || saml_response
+            .encrypted_assertions
+            .iter()
+            .any(|enc_assertion| enc_assertion.assertion.signature.is_some())
 }
 
 fn check_encrypt_assertions(saml_response: &Response) -> bool {
-    saml_response
-        .encrypted_assertions
-        .iter()
-        .any(|enc_assertions| !enc_assertions.is_empty())
+    !saml_response.encrypted_assertions.is_empty()
 }
 
 fn check_sign_envelope(saml_response: &Response) -> bool {

@@ -134,15 +134,15 @@ fn build_response(
             },
             status_message: None,
         }),
-        encrypted_assertions: None,
-        assertions: Some(vec![build_assertion(
+        encrypted_assertions: Vec::new(),
+        assertions: vec![build_assertion(
             name_id,
             request_id,
             issuer,
             destination,
             audience,
             attributes,
-        )]),
+        )],
     }
 }
 

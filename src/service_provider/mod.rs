@@ -421,13 +421,13 @@ impl ServiceProvider {
             }
         }
 
-        if let Some(_encrypted_assertion) = &response.encrypted_assertions {
+        if !response.encrypted_assertions.is_empty() {
             Err(Error::EncryptedAssertionsNotYetSupported)
-        } else if let Some(assertions) = &response.assertions {
-            for assertion in assertions.iter() {
+        } else if !response.assertions.is_empty() {
+            for assertion in response.assertions.iter() {
                 self.validate_assertion(assertion, possible_request_ids)?;
             }
-            Ok(assertions.clone())
+            Ok(response.assertions.clone())
         } else {
             Err(Error::UnexpectedError)
         }

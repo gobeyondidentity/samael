@@ -368,7 +368,6 @@ fn test_signed_assertions() {
                 .build()
                 .unwrap(),
         )
-        .encrypted_assertions(None)
         .assertions(vec![Assertion {
             id: assertion_id.clone(),
             issue_instant: Utc::now(),
@@ -436,10 +435,10 @@ fn test_signed_assertions() {
     println!("Decoded Document: {decoded_response:?}");
 
     //Checking that we have have the assertion we were expecting.
-    assert_eq!(decoded_response.assertions.as_ref().unwrap().len(), 1);
+    assert_eq!(decoded_response.assertions.len(), 1);
 
     // Attempting to get the signature from the assertion.
-    let assertion = &decoded_response.assertions.as_ref().unwrap()[0];
+    let assertion = &decoded_response.assertions[0];
     let signature = assertion
         .signature
         .as_ref()
@@ -603,7 +602,6 @@ fn test_encrypted_assertions() {
             })
             .build()
             .unwrap()])
-        .assertions(None)
         .build()
         .unwrap();
     println!("Response XML:{} ", response.to_xml().unwrap());
@@ -628,17 +626,7 @@ fn test_encrypted_assertions() {
     println!("Decoded Document: {decoded_response:?}");
 
     //Checking that we have have the assertion we were expecting.
-    assert_eq!(
-        decoded_response
-            .encrypted_assertions
-            .as_ref()
-            .unwrap()
-            .len(),
-        1
-    );
-
-    // Attempting to get the signature from the assertion.
-    // let enc_assertion = &decoded_response.encrypted_assertions.as_ref().unwrap()[0];
+    assert_eq!(decoded_response.encrypted_assertions.len(), 1);
 }
 
 #[test]
@@ -785,7 +773,6 @@ fn test_encrypted_assertions_and_sign_everything() {
             })
             .build()
             .unwrap()])
-        .assertions(None)
         .build()
         .unwrap();
     // println!("Response XML:{} ", response.to_xml().unwrap());

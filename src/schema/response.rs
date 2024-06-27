@@ -42,12 +42,12 @@ pub struct Response {
     #[serde(rename = "Status")]
     #[builder(default)]
     pub status: Option<Status>,
-    #[serde(rename = "EncryptedAssertion")]
+    #[serde(default, rename = "EncryptedAssertion")]
     #[builder(default)]
-    pub encrypted_assertions: Option<Vec<EncryptedAssertion>>,
-    #[serde(rename = "Assertion")]
+    pub encrypted_assertions: Vec<EncryptedAssertion>,
+    #[serde(default, rename = "Assertion")]
     #[builder(default)]
-    pub assertions: Option<Vec<Assertion>>,
+    pub assertions: Vec<Assertion>,
 }
 
 #[derive(Debug, Error)]
@@ -119,19 +119,15 @@ impl TryFrom<&Response> for Event<'_> {
             writer.write_event(event)?;
         }
 
-        if let Some(assertions) = &value.assertions {
-            for assertion in assertions.iter() {
-                let event: Event<'_> = assertion.try_into()?;
-                writer.write_event(event)?;
-            }
+        for assertion in value.assertions.iter() {
+            let event: Event<'_> = assertion.try_into()?;
+            writer.write_event(event)?;
         }
 
         // Handling encrypted assertions.
-        if let Some(assertions) = &value.encrypted_assertions {
-            for assertion in assertions.iter() {
-                let event: Event<'_> = assertion.try_into()?;
-                writer.write_event(event)?;
-            }
+        for assertion in value.encrypted_assertions.iter() {
+            let event: Event<'_> = assertion.try_into()?;
+            writer.write_event(event)?;
         }
 
         writer.write_event(Event::End(BytesEnd::new(NAME)))?;
