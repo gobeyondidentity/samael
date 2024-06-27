@@ -75,7 +75,6 @@ impl ResponseVerifier {
                 .evaluate("//samlp:Response/dsig:Signature")
                 .map_err(|_| XmlSecError::XPathEvaluationError)?;
             unsafe {
-                // TODO: Fix the unwraps here.
                 let node_name = std::ffi::CString::new("Response")?;
                 let attr_name = std::ffi::CString::new("ID")?;
                 let ns_href = std::ffi::CString::new("urn:oasis:names:tc:SAML:2.0:protocol")?;
@@ -182,7 +181,5 @@ mod test {
         let builder = ResponseVerifierBuilder::default();
         let verifier = builder.build().unwrap();
         let _response = verifier.verify_from_html_form(test_form).unwrap();
-        // response.
-        // todo!()
     }
 }

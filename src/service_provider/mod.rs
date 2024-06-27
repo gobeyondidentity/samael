@@ -422,7 +422,6 @@ impl ServiceProvider {
         }
 
         if let Some(_encrypted_assertion) = &response.encrypted_assertions {
-            // TODO: figure out how to make sure that this works as expected.
             Err(Error::EncryptedAssertionsNotYetSupported)
         } else if let Some(assertions) = &response.assertions {
             for assertion in assertions.iter() {

@@ -438,7 +438,6 @@ fn encrypt_assertions(
     encryption_context.encrypt_all_encrypted_assertions(document)?;
 
     Ok(())
-    // todo!()
 }
 
 fn update_signature(encoded_certificate: &str, sig: &mut Signature) {
