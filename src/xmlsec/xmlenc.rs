@@ -49,7 +49,7 @@ impl XmlSecEncryptionContext {
             let xml_sec_key = xmlSecKeyReadMemory(
                 xmlSecOpenSSLKeyDataAesGetKlass(),
                 key_contents.as_ptr(),
-                key_contents.len() as u32,
+                key_contents.len().try_into()?,
             );
             if xml_sec_key.is_null() {
                 return Err(XmlSecError::SecKeyReadBufferError);

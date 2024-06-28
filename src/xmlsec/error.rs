@@ -1,6 +1,7 @@
 //!
 //! XmlSec High Level Error handling
 //!
+use std::{convert::Infallible, num::TryFromIntError};
 
 /// Wrapper project-wide Result typealias.
 pub type XmlSecResult<T> = Result<T, XmlSecError>;
@@ -62,6 +63,21 @@ pub enum XmlSecError {
     },
 
     SecInvalidIdCollectionNode,
+
+    TryFromInt(TryFromIntError),
+    TryFromInfallible(Infallible),
+}
+
+impl From<TryFromIntError> for XmlSecError {
+    fn from(value: TryFromIntError) -> Self {
+        Self::TryFromInt(value)
+    }
+}
+
+impl From<Infallible> for XmlSecError {
+    fn from(value: Infallible) -> Self {
+        Self::TryFromInfallible(value)
+    }
 }
 
 impl std::fmt::Display for XmlSecError {
@@ -135,6 +151,12 @@ impl std::fmt::Display for XmlSecError {
             } => write!(fmt, "Mismatched number of nodes to encrypt and template encryption patterns, number of nodes: {} Number of templates: {}", node_count, template_count),
             Self::SecInvalidIdCollectionNode => {
                 write!(fmt, "The provided starting nod is null")
+            }
+            Self::TryFromInt(error) => {
+                write!(fmt, "Encountered an error during integer conversion: {}", error)
+            }
+            Self::TryFromInfallible(error) => {
+                write!(fmt, "Encountered an error but infallible: {}", error)
             }
         }
     }

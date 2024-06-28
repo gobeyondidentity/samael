@@ -95,7 +95,7 @@ impl XmlSecKey {
         unsafe {
             let key_ptr = xmlSecOpenSSLAppKeyLoadMemory(
                 key.as_ptr(),
-                key.len() as u32,
+                key.len().try_into()?,
                 xmlSecKeyDataFormat_xmlSecKeyDataFormatPem,
                 null(),
                 null_mut(),
@@ -128,7 +128,7 @@ impl XmlSecKey {
         unsafe {
             let key_ptr = xmlSecOpenSSLAppKeyLoadMemory(
                 key.as_ptr(),
-                key.len() as u32,
+                key.len().try_into()?,
                 xmlSecKeyDataFormat_xmlSecKeyDataFormatDer,
                 null(),
                 null_mut(),
