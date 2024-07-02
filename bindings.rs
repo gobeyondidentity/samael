@@ -17,7 +17,7 @@ fn main() {
 
     // Determine which API/ABI is available on this platform:
     let cflags = fetch_xmlsec_config_flags();
-    let dynamic = if cflags
+    let _dynamic = if cflags
         .iter()
         .any(|s| s == "-DXMLSEC_CRYPTO_DYNAMIC_LOADING=1")
     {
@@ -28,9 +28,9 @@ fn main() {
         false
     };
 
-    if !dynamic {
-        println!("cargo:rustc-link-lib=xmlsec1-openssl"); // -lxmlsec1-openssl
-    }
+    // if !dynamic {
+    // }
+    println!("cargo:rustc-link-lib=xmlsec1-openssl"); // -lxmlsec1-openssl
     println!("cargo:rustc-link-lib=xmlsec1"); // -lxmlsec1
     println!("cargo:rustc-link-lib=xml2"); // -lxml2
     println!("cargo:rustc-link-lib=ssl"); // -lssl
