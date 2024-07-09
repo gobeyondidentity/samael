@@ -629,7 +629,7 @@ dependencies = [
 
 [[package]]
 name = "samael"
-version = "0.0.21"
+version = "0.0.22"
 dependencies = [
  "base64",
  "bindgen",

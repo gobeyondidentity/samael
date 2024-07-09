@@ -425,9 +425,9 @@ fn test_signed_assertions() {
         .build()
         .unwrap();
     println!("Response XML:{} ", response.to_xml().unwrap());
-
+    let x509_signing_certificate = idp.create_certificate(&params).unwrap();
     let xml_response = idp
-        .generate_response(Some(&params), response)
+        .generate_response(Some(x509_signing_certificate), response)
         .expect("Code generation failed");
     println!("xml_response = {}", xml_response);
 
@@ -605,9 +605,9 @@ fn test_encrypted_assertions() {
         .build()
         .unwrap();
     println!("Response XML:{} ", response.to_xml().unwrap());
-
+    let x509_signing_certificate = idp.create_certificate(&params).unwrap();
     let saml_response = idp
-        .generate_response(Some(&params), response)
+        .generate_response(Some(x509_signing_certificate), response)
         .expect("Code generation failed");
     println!("saml_response = {}", saml_response);
 
@@ -632,6 +632,15 @@ fn test_encrypted_assertions() {
 #[test]
 fn test_encrypted_assertions_and_sign_everything() {
     let signature_keys = openssl::rsa::Rsa::generate(4096).unwrap();
+    println!(
+        "signature_keys.private_key_pem = {}",
+        String::from_utf8(
+            signature_keys
+                .private_key_to_pem()
+                .expect("Failed to get private key")
+        )
+        .expect("Failed to get string")
+    );
     let encryption_keys = openssl::rsa::Rsa::generate(4096).unwrap();
     let public_key = encryption_keys.public_key_to_pem().unwrap();
     let public_encryption_key = openssl::rsa::Rsa::public_key_from_pem(&public_key).unwrap();
@@ -775,10 +784,10 @@ fn test_encrypted_assertions_and_sign_everything() {
             .unwrap()])
         .build()
         .unwrap();
-    // println!("Response XML:{} ", response.to_xml().unwrap());
 
+    let x509_signing_certificate = idp.create_certificate(&params).unwrap();
     let saml_response = idp
-        .generate_response(Some(&params), response)
+        .generate_response(Some(x509_signing_certificate), response)
         .expect("Code generation failed");
     println!("saml_response = {}", saml_response);
 

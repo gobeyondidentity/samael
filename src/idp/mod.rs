@@ -118,20 +118,15 @@ impl IdentityProvider {
     /// signed.
     pub fn generate_response(
         &self,
-        signature_params: Option<&CertificateParams>,
+        x509_signing_certificate: Option<Vec<u8>>,
         saml_response: Response,
     ) -> Result<String, Error> {
         // Getting the certificate if one is asked for.
-        let cert = if let Some(params) = signature_params {
-            Some(self.create_certificate(params)?)
-        } else {
-            None
-        };
         let signature_key = self.private_key.private_key_to_der()?;
         let generator = ResponseGenerator::new(
             self.encryption_key_name.clone(),
             self.assertion_encryption_key.clone(),
-            cert,
+            x509_signing_certificate,
             signature_key,
         );
         generator.generate_response(saml_response)
