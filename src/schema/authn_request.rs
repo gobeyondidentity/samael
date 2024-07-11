@@ -9,8 +9,11 @@ use std::io::Cursor;
 use std::str::FromStr;
 use thiserror::Error;
 
+use super::AuthnContextClassRef;
+
 const NAME: &str = "saml2p:AuthnRequest";
-const SCHEMA: (&str, &str) = ("xmlns:saml2p", "urn:oasis:names:tc:SAML:2.0:protocol");
+const PROTOCOL_SCHEMA: (&str, &str) = ("xmlns:saml2p", "urn:oasis:names:tc:SAML:2.0:protocol");
+const ASSERTION_SCHEMA: (&str, &str) = ("xmlns:saml2", "urn:oasis:names:tc:SAML:2.0:assertion");
 
 #[derive(Clone, Debug, Deserialize, Hash, Eq, PartialEq, Ord, PartialOrd)]
 pub struct AuthnRequest {
@@ -48,6 +51,8 @@ pub struct AuthnRequest {
     pub attribute_consuming_service_index: Option<usize>,
     #[serde(rename = "@ProviderName")]
     pub provider_name: Option<String>,
+    #[serde(default, rename = "RequestedAuthnContext")]
+    pub requested_authn_context: Option<RequestedAuthnContext>,
 }
 
 impl Default for AuthnRequest {
@@ -70,6 +75,7 @@ impl Default for AuthnRequest {
             protocol_binding: None,
             attribute_consuming_service_index: None,
             provider_name: None,
+            requested_authn_context: None,
         }
     }
 }
@@ -147,7 +153,8 @@ impl TryFrom<&AuthnRequest> for Event<'_> {
         writer.write_event(Event::Decl(BytesDecl::new("1.0", Some("UTF-8"), None)))?;
 
         let mut root = BytesStart::new(NAME);
-        root.push_attribute(SCHEMA);
+        root.push_attribute(PROTOCOL_SCHEMA);
+        root.push_attribute(ASSERTION_SCHEMA);
         root.push_attribute(("ID", value.id.as_ref()));
         root.push_attribute(("Version", value.version.as_ref()));
         root.push_attribute((
@@ -217,11 +224,112 @@ impl TryFrom<&AuthnRequest> for Event<'_> {
             writer.write_event(event)?;
         }
 
+        if let Some(requested_authn_context) = &value.requested_authn_context {
+            let event: Event<'_> = requested_authn_context.try_into()?;
+            writer.write_event(event)?;
+        }
+
         writer.write_event(Event::End(BytesEnd::new(NAME)))?;
 
         Ok(Event::Text(BytesText::from_escaped(String::from_utf8(
             write_buf,
         )?)))
+    }
+}
+
+#[derive(Clone, Debug, Deserialize, Hash, Eq, PartialEq, Ord, PartialOrd)]
+pub struct RequestedAuthnContext {
+    #[serde(default, rename = "AuthnContextClassRef")]
+    pub class_ref: Vec<AuthnContextClassRef>,
+
+    #[serde(default, rename = "AuthnContextDeclRef")]
+    pub decl_ref: Vec<AuthnContextDeclRef>,
+
+    #[serde(default, rename = "@Comparison")]
+    pub comparison: Option<String>,
+}
+
+impl TryFrom<RequestedAuthnContext> for Event<'_> {
+    type Error = Box<dyn std::error::Error>;
+
+    fn try_from(value: RequestedAuthnContext) -> Result<Self, Self::Error> {
+        (&value).try_into()
+    }
+}
+
+impl TryFrom<&RequestedAuthnContext> for Event<'_> {
+    type Error = Box<dyn std::error::Error>;
+
+    fn try_from(value: &RequestedAuthnContext) -> Result<Self, Self::Error> {
+        let mut write_buf = Vec::new();
+        let mut writer = Writer::new(Cursor::new(&mut write_buf));
+
+        let mut root = BytesStart::new(RequestedAuthnContext::name());
+        if let Some(comparison) = value.comparison.as_ref() {
+            root.push_attribute(("Comparison", comparison.as_str()));
+        }
+        writer.write_event(Event::Start(root))?;
+
+        for cls_ref in &value.class_ref {
+            let event: Event<'_> = cls_ref.try_into()?;
+            writer.write_event(event)?;
+        }
+
+        for decl_ref in &value.decl_ref {
+            let event: Event<'_> = decl_ref.try_into()?;
+            writer.write_event(event)?;
+        }
+        writer.write_event(Event::End(BytesEnd::new(RequestedAuthnContext::name())))?;
+        Ok(Event::Text(BytesText::from_escaped(String::from_utf8(
+            write_buf,
+        )?)))
+    }
+}
+
+impl RequestedAuthnContext {
+    fn name() -> &'static str {
+        "saml2:RequestedAuthnContext"
+    }
+}
+
+#[derive(Clone, Debug, Deserialize, Hash, Eq, PartialEq, Ord, PartialOrd)]
+pub struct AuthnContextDeclRef {
+    #[serde(rename = "$value")]
+    pub value: Option<String>,
+}
+
+impl AuthnContextDeclRef {
+    fn name() -> &'static str {
+        "saml2:AuthnContextDeclRef"
+    }
+}
+
+impl TryFrom<AuthnContextDeclRef> for Event<'_> {
+    type Error = Box<dyn std::error::Error>;
+
+    fn try_from(value: AuthnContextDeclRef) -> Result<Self, Self::Error> {
+        (&value).try_into()
+    }
+}
+
+impl TryFrom<&AuthnContextDeclRef> for Event<'_> {
+    type Error = Box<dyn std::error::Error>;
+
+    fn try_from(value: &AuthnContextDeclRef) -> Result<Self, Self::Error> {
+        if let Some(value) = &value.value {
+            let mut write_buf = Vec::new();
+            let mut writer = Writer::new(Cursor::new(&mut write_buf));
+            let root = BytesStart::new(AuthnContextDeclRef::name());
+
+            writer.write_event(Event::Start(root))?;
+            writer.write_event(Event::Text(BytesText::from_escaped(value)))?;
+            writer.write_event(Event::End(BytesEnd::new(AuthnContextClassRef::name())))?;
+            Ok(Event::Text(BytesText::from_escaped(String::from_utf8(
+                write_buf,
+            )?)))
+        } else {
+            Ok(Event::Text(BytesText::from_escaped(String::new())))
+        }
     }
 }
 
