@@ -25,8 +25,12 @@ pub struct ResponseVerifier {
 }
 
 impl ResponseVerifier {
-    /// Parses and verifies an HTML form.
-    pub fn verify_from_html_form(&self, html_form: &str) -> Result<Response, Error> {
+    /// Parses and verifies an HTML form. Returns both the response and
+    /// optionally the relay state if present.
+    pub fn verify_from_html_form(
+        &self,
+        html_form: &str,
+    ) -> Result<(Response, Option<String>), Error> {
         let html_parser = Parser::default_html();
         let html_document = html_parser.parse_string(html_form)?;
         let xpath_context = libxml::xpath::Context::new(&html_document)
@@ -42,7 +46,43 @@ impl ResponseVerifier {
         if nodes.len() > 1 {
             return Err(Error::TooManySamlResponses);
         }
-        self.verify_from_base64(nodes[0].as_str())
+        let verified_response = self.verify_from_base64(nodes[0].as_str())?;
+        let xpath_object = xpath_context
+            .evaluate("//input[@type='hidden' and @name='RelayState']/@value")
+            .map_err(|_| XmlSecError::XPathEvaluationError)?;
+        let nodes = xpath_object.get_nodes_as_str();
+        if nodes.len() > 1 {
+            return Err(Error::TooManySamlResponses);
+        }
+        Ok((verified_response, nodes.first().cloned()))
+    }
+
+    /// Parses and verifies an the redirect URI. Returns both the response and
+    /// optionally the relay state if present.
+    pub fn verify_from_url(&self, url: &url::Url) -> Result<(Response, Option<String>), Error> {
+        let mut saml_response: Option<String> = None;
+        let mut relay_state: Option<String> = None;
+        for (name, value) in url.query_pairs().into_iter() {
+            if name == "SAMLResponse" {
+                if saml_response.is_some() {
+                    return Err(Error::DuplicateSamlResponseInUrl);
+                }
+                saml_response = Some(value.to_string());
+            }
+            if name == "RelayState" {
+                if relay_state.is_some() {
+                    return Err(Error::DuplicateRelayStateInUrl);
+                }
+                relay_state = Some(value.to_string());
+            }
+        }
+
+        let verified_response = if let Some(response) = saml_response {
+            self.verify_from_base64(response.as_str())?
+        } else {
+            return Err(Error::MissingSamlResponseInUrl);
+        };
+        Ok((verified_response, relay_state))
     }
 
     /// Verify a document starting from a base64 encoded Response object.

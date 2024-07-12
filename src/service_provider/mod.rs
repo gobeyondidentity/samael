@@ -117,6 +117,15 @@ pub enum Error {
     #[error("Received an invalid assertion signature.")]
     InvalidAssertionSignature,
 
+    #[error("There are more than one 'SAMLResponse' query argument within redirect URL.")]
+    DuplicateSamlResponseInUrl,
+
+    #[error("There are more than one 'RelayState' query argument within redirect URL.")]
+    DuplicateRelayStateInUrl,
+
+    #[error("Missing 'SAMLResponse' argument within redirect URL.")]
+    MissingSamlResponseInUrl,
+
     #[error("XML parsing error {0}")]
     XmlParsingError(#[from] XmlParseError),
 
