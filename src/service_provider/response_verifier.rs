@@ -1,3 +1,5 @@
+use std::io::Read;
+
 use super::Error;
 use crate::{
     schema::Response,
@@ -6,6 +8,7 @@ use crate::{
         XmlSecSignatureContext,
     },
 };
+use flate2::read::DeflateDecoder;
 use libxml::parser::Parser;
 use openssl::pkey::{PKey, Private, Public};
 
@@ -77,8 +80,13 @@ impl ResponseVerifier {
             }
         }
 
-        let verified_response = if let Some(response) = saml_response {
-            self.verify_from_base64(response.as_str())?
+        let verified_response = if let Some(base64_encoded_response) = saml_response {
+            let deflated_xml_document = openssl::base64::decode_block(&base64_encoded_response)?;
+            let mut deflater = DeflateDecoder::new(deflated_xml_document.as_slice());
+            let mut deflated_xml_vec = Vec::new();
+            deflater.read_to_end(&mut deflated_xml_vec)?;
+            let doc_str = String::from_utf8(deflated_xml_document)?;
+            self.verify_saml_response(&doc_str)?
         } else {
             return Err(Error::MissingSamlResponseInUrl);
         };

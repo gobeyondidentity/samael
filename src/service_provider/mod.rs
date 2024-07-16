@@ -143,6 +143,9 @@ pub enum Error {
 
     #[error(transparent)]
     NulError(#[from] std::ffi::NulError),
+
+    #[error(transparent)]
+    Read(#[from] std::io::Error),
 }
 
 #[derive(Builder, Clone)]
