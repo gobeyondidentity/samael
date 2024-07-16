@@ -85,7 +85,7 @@ impl ResponseVerifier {
             let mut deflater = DeflateDecoder::new(deflated_xml_document.as_slice());
             let mut deflated_xml_vec = Vec::new();
             deflater.read_to_end(&mut deflated_xml_vec)?;
-            let doc_str = String::from_utf8(deflated_xml_document)?;
+            let doc_str = String::from_utf8(deflated_xml_vec)?;
             self.verify_saml_response(&doc_str)?
         } else {
             return Err(Error::MissingSamlResponseInUrl);
