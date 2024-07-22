@@ -189,6 +189,12 @@ impl TryFrom<&IdpSsoDescriptor> for Event<'_> {
         if let Some(id) = &value.id {
             root.push_attribute(("ID", id.as_ref()));
         }
+        if let Some(what_signed_requests) = value.want_authn_requests_signed.as_ref() {
+            root.push_attribute((
+                "WantAuthnRequestsSigned",
+                what_signed_requests.to_string().as_str(),
+            ));
+        }
 
         if let Some(valid_until) = &value.valid_until {
             root.push_attribute((
