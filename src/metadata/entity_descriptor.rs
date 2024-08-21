@@ -297,6 +297,18 @@ impl EntityDescriptor {
                 writer.write_event(event)?;
             }
         }
+        if let Some(role_descriptors) = self.role_descriptors.as_ref() {
+            for role_descriptor in role_descriptors {
+                let event: Event<'_> = role_descriptor.try_into()?;
+                writer.write_event(event)?;
+            }
+        }
+
+        if let Some(signature) = self.signature.as_ref() {
+            let event: Event<'_> = signature.try_into()?;
+            writer.write_event(event)?;
+        }
+
         writer.write_event(Event::End(BytesEnd::new(root_name)))?;
 
         Ok(String::from_utf8(write_buf)?)

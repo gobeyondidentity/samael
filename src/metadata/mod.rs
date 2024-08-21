@@ -9,6 +9,7 @@ mod key_descriptor;
 mod localized;
 mod organization;
 mod sp_sso_descriptor;
+pub mod ws_fed;
 
 pub use affiliation_descriptor::*;
 pub use attribute_consuming_service::AttributeConsumingService;
@@ -67,6 +68,16 @@ impl NameIdFormat {
     }
 }
 
+pub const ROLE_DESCRIPTOR_XML_NAME: &str = "md:RoleDescriptor";
+pub const NS_XSI_SCHEMA_INSTANCE: (&str, &str) =
+    ("xmlns:xsi", "http://www.w3.org/2001/XMLSchema-instance");
+
+pub const NS_WS_FED: (&str, &str) = (
+    "xmlns:fed",
+    "http://docs.oasis-open.org/wsfed/federation/200706",
+);
+pub const XSI_TYPE_ATTR_NAME: &str = "xsi:type";
+
 /// This should be the base class of role descriptions.
 ///
 /// The <RoleDescriptor> element is an abstract extension point that contains
@@ -82,7 +93,7 @@ pub struct RoleDescriptor {
     #[serde(rename = "@cacheDuration")]
     pub cache_duration: Option<usize>,
     #[serde(rename = "@protocolSupportEnumeration")]
-    pub protocol_support_enumeration: Option<String>,
+    pub protocol_support_enumeration: String,
     #[serde(rename = "@errorURL")]
     pub error_url: Option<String>,
     #[serde(rename = "Signature")]
@@ -93,6 +104,96 @@ pub struct RoleDescriptor {
     pub organization: Option<Organization>,
     #[serde(rename = "ContactPerson", default)]
     pub contact_people: Vec<ContactPerson>,
+    #[serde(rename = "@xsi:type", default)]
+    #[serde(alias = "@type")]
+    pub r#type: Option<String>,
+    #[serde(rename = "PassiveRequestorEndpoint", default)]
+    pub passive_requestor_endpoint: Vec<ws_fed::PassiveRequestorEndpoint>,
+}
+
+impl TryFrom<RoleDescriptor> for Event<'_> {
+    type Error = Box<dyn std::error::Error>;
+
+    fn try_from(value: RoleDescriptor) -> Result<Self, Self::Error> {
+        (&value).try_into()
+    }
+}
+
+impl TryFrom<&RoleDescriptor> for Event<'_> {
+    type Error = Box<dyn std::error::Error>;
+
+    fn try_from(value: &RoleDescriptor) -> Result<Self, Self::Error> {
+        let mut write_buf = Vec::new();
+        let mut writer = Writer::new(Cursor::new(&mut write_buf));
+        let mut root = BytesStart::new(ROLE_DESCRIPTOR_XML_NAME);
+        if !value.passive_requestor_endpoint.is_empty() {
+            root.push_attribute(NS_WS_FED);
+        }
+
+        if let Some(ty) = value.r#type.as_ref() {
+            root.push_attribute(NS_XSI_SCHEMA_INSTANCE);
+            root.push_attribute((XSI_TYPE_ATTR_NAME, ty.as_str()));
+        }
+
+        if let Some(id) = &value.id {
+            root.push_attribute(("ID", id.as_ref()));
+        }
+
+        if let Some(valid_until) = &value.valid_until {
+            root.push_attribute((
+                "validUntil",
+                valid_until
+                    .to_rfc3339_opts(SecondsFormat::Secs, true)
+                    .as_ref(),
+            ));
+        }
+
+        if let Some(cache_duration) = &value.cache_duration {
+            root.push_attribute(("cacheDuration", cache_duration.to_string().as_ref()));
+        }
+
+        root.push_attribute((
+            "protocolSupportEnumeration",
+            value.protocol_support_enumeration.as_str(),
+        ));
+
+        if let Some(error_url) = &value.error_url {
+            root.push_attribute(("errorURL", error_url.as_ref()));
+        }
+
+        // Writing the actual event starting from here.
+        writer.write_event(Event::Start(root))?;
+
+        for descriptor in &value.key_descriptors {
+            let event: Event<'_> = descriptor.try_into()?;
+            writer.write_event(event)?;
+        }
+
+        if let Some(signature) = value.signature.as_ref() {
+            let event: Event<'_> = signature.try_into()?;
+            writer.write_event(event)?;
+        }
+
+        if let Some(organization) = &value.organization {
+            let event: Event<'_> = organization.try_into()?;
+            writer.write_event(event)?;
+        }
+
+        for contact in &value.contact_people {
+            let event: Event<'_> = contact.try_into()?;
+            writer.write_event(event)?;
+        }
+
+        for requestor in &value.passive_requestor_endpoint {
+            let event: Event<'_> = requestor.try_into()?;
+            writer.write_event(event)?;
+        }
+
+        writer.write_event(Event::End(BytesEnd::new(ROLE_DESCRIPTOR_XML_NAME)))?;
+        Ok(Event::Text(BytesText::from_escaped(String::from_utf8(
+            write_buf,
+        )?)))
+    }
 }
 
 #[derive(Clone, Debug, Deserialize, Hash, Eq, PartialEq, Ord, PartialOrd)]
@@ -353,4 +454,54 @@ pub struct PdpDescriptors {
     pub assertion_id_request_services: Vec<Endpoint>,
     #[serde(rename = "NameIDFormat", default)]
     pub name_id_formats: Vec<String>,
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+    use crate::schema::ws_fed::{Address, EndpointReference};
+    use std::str::FromStr;
+    use ws_fed::PassiveRequestorEndpoint;
+
+    #[test]
+    fn entity_descriptor_rt_with_ws_fed() {
+        let input = EntityDescriptor {
+            entity_id: None,
+            id: None,
+            valid_until: None,
+            cache_duration: None,
+            signature: None,
+            affiliation_descriptors: None,
+            role_descriptors: Some(vec![RoleDescriptor {
+                id: Some("My id".to_string()),
+                valid_until: None,
+                cache_duration: None,
+                protocol_support_enumeration: "protocol_support_enumeration".to_string(),
+                error_url: None,
+                signature: None,
+                key_descriptors: Vec::new(),
+                organization: None,
+                contact_people: Vec::new(),
+                r#type: Some("Something".to_string()),
+                passive_requestor_endpoint: vec![PassiveRequestorEndpoint {
+                    endpoint_reference: EndpointReference {
+                        address: Address {
+                            value: "My Address".to_string(),
+                        },
+                    },
+                }],
+            }]),
+            idp_sso_descriptors: None,
+            sp_sso_descriptors: None,
+            authn_authority_descriptors: None,
+            attribute_authority_descriptors: None,
+            pdp_descriptors: None,
+            organization: None,
+            contact_person: None,
+        };
+        let xml_body = input.to_xml().unwrap();
+        println!("XML body = {xml_body}");
+        let deserialized = EntityDescriptor::from_str(&xml_body).unwrap();
+        assert_eq!(deserialized, input);
+    }
 }

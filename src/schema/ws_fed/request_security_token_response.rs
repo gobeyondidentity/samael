@@ -267,7 +267,9 @@ mod test {
 
         assert_eq!(deserialized.context, rstr.context);
         assert_eq!(deserialized.token_type, rstr.token_type);
-        // Skipping this because of a clock skew issue with issue instant.
+        // Skipping this because of a clock skew issue with issue instant cause
+        // by parsing.
+
         // assert_eq!(deserialized.requested_security_token, rstr.requested_security_token);
         assert_eq!(deserialized.applies_to, rstr.applies_to);
         assert_eq!(deserialized.key_type, rstr.key_type);
