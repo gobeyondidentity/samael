@@ -143,6 +143,42 @@ impl XmlSecSignatureContext {
         Ok(())
     }
 
+    /// Signs the metadata envelope.
+    pub fn sign_metadata_envelope(&self, doc: &XmlDocument) -> XmlSecResult<()> {
+        self.key_is_set()?;
+        // Creating an XPath to locate all of the
+        let xpath_context =
+            libxml::xpath::Context::new(doc).map_err(|_| XmlSecError::XPathContextError)?;
+        xpath_context
+            .register_namespace("dsig", "http://www.w3.org/2000/09/xmldsig#")
+            .map_err(|_| XmlSecError::XPathNamespaceError)?;
+        xpath_context
+            .register_namespace("md", "urn:oasis:names:tc:SAML:2.0:metadata")
+            .map_err(|_| XmlSecError::XPathNamespaceError)?;
+
+        let doc_signature_node = xpath_context
+            .evaluate("//md:EntityDescriptor/dsig:Signature")
+            .map_err(|_| XmlSecError::XPathEvaluationError)?;
+
+        let signature_nodes = doc_signature_node.get_nodes_as_vec();
+        if signature_nodes.is_empty() {
+            return Err(XmlSecError::MissingDocumentSignature);
+        }
+        if signature_nodes.len() != 1 {
+            return Err(XmlSecError::TooManySignatureNodesError);
+        }
+        // let mut node = signature_nodes[0];
+        for mut to_sign in signature_nodes.into_iter() {
+            self.sign_node_raw(
+                to_sign
+                    .node_ptr_mut()
+                    .map_err(|msg| XmlSecError::XmlDocumentErr { msg })?
+                    as *mut bindings::xmlNode,
+            )?;
+        }
+        Ok(())
+    }
+
     /// This should be called before everything else is so we don't update this
     /// multiple time, but all it does is walk all of the elements of the tree
     /// searching for ID's and adds all attributes from the ids list to the doc
@@ -349,4 +385,3 @@ fn find_signode(tree: *mut bindings::xmlNode) -> XmlSecResult<*mut bindings::xml
 
     Ok(signode)
 }
-

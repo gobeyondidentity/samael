@@ -6,6 +6,7 @@ mod issuer;
 mod name_id_policy;
 mod response;
 mod subject;
+pub mod ws_fed;
 
 pub use authn_request::AuthnRequest;
 pub use conditions::*;
