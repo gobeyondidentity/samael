@@ -2,6 +2,9 @@ use super::*;
 use crate::crypto::verify_signed_xml;
 use crate::idp::sp_extractor::{RequiredAttribute, SPMetadataExtractor};
 use crate::idp::verified_request::UnverifiedAuthnRequest;
+use crate::metadata::ws_fed::PassiveRequestorEndpoint;
+use crate::metadata::RoleDescriptor;
+use crate::schema::ws_fed::{Address, EndpointReference};
 use crate::schema::{
     Assertion, AudienceRestriction, AuthnContext, AuthnContextClassRef, AuthnStatement, Conditions,
     EncryptedAssertionBuilder, EncryptedCipherData, EncryptedCipherValue, EncryptedData,
@@ -807,4 +810,116 @@ fn test_encrypted_assertions_and_sign_everything() {
     let _ = response_verifier
         .verify_saml_response(&document.to_string())
         .unwrap();
+}
+
+#[test]
+fn test_signed_metadata() {
+    let signature_keys = openssl::rsa::Rsa::generate(4096).unwrap();
+    let encryption_keys = openssl::rsa::Rsa::generate(4096).unwrap();
+    let public_key = encryption_keys.public_key_to_pem().unwrap();
+    let public_encryption_key = openssl::rsa::Rsa::public_key_from_pem(&public_key).unwrap();
+    let public_idp_signature_key = signature_keys.public_key_to_der().unwrap();
+
+    let idp = IdentityProvider::new(
+        Some("test_key_name".into()),
+        Some(pkey::PKey::from_rsa(public_encryption_key).unwrap()),
+        pkey::PKey::from_rsa(signature_keys).unwrap(),
+    );
+
+    let params = CertificateParams {
+        common_name: "https://idp.example.com",
+        issuer_name: "https://idp.example.com",
+        days_until_expiration: 3650,
+    };
+    let input = EntityDescriptor {
+        entity_id: None,
+        id: None,
+        valid_until: None,
+        cache_duration: None,
+        signature: Some(Signature::xmlsec_signature_template(
+            None,
+            "http://www.w3.org/2001/04/xmldsig-more#rsa-sha256",
+            "http://www.w3.org/2000/09/xmldsig#sha1",
+        )),
+        affiliation_descriptors: None,
+        role_descriptors: Some(vec![RoleDescriptor {
+            id: Some("My id".to_string()),
+            valid_until: None,
+            cache_duration: None,
+            protocol_support_enumeration: "protocol_support_enumeration".to_string(),
+            error_url: None,
+            signature: None,
+            key_descriptors: Vec::new(),
+            organization: None,
+            contact_people: Vec::new(),
+            r#type: Some("Something".to_string()),
+            passive_requestor_endpoint: vec![PassiveRequestorEndpoint {
+                endpoint_reference: EndpointReference {
+                    address: Address {
+                        value: "My Address".to_string(),
+                    },
+                },
+            }],
+        }]),
+        idp_sso_descriptors: None,
+        sp_sso_descriptors: None,
+        authn_authority_descriptors: None,
+        attribute_authority_descriptors: None,
+        pdp_descriptors: None,
+        organization: None,
+        contact_person: None,
+    };
+
+    let x509_signing_certificate = idp.create_certificate(&params).unwrap();
+    let signed_metadata = idp
+        .sign_metadata(x509_signing_certificate, input)
+        .expect("Signing failed");
+
+    let decoded_metadata: EntityDescriptor =
+        signed_metadata.parse().expect("Failed to parse document");
+    println!("Decoded Document: {decoded_metadata:?}");
+    assert_eq!(decoded_metadata.role_descriptors.as_ref().unwrap().len(), 1);
+    let role_descriptor = &decoded_metadata.role_descriptors.as_ref().unwrap()[0];
+    assert_eq!(role_descriptor.passive_requestor_endpoint.len(), 1);
+
+    let signature = decoded_metadata
+        .signature
+        .as_ref()
+        .expect("Failed to get signature");
+    let key_info = signature.key_info.as_ref().expect("Missing key info");
+    assert_eq!(key_info.len(), 1);
+    let sig_content = signature
+        .signature_value
+        .base64_content
+        .as_ref()
+        .expect("Failed to get signature contents");
+    assert_ne!(sig_content, "");
+    println!("Signature value: {}", sig_content);
+    assert_eq!(signature.signed_info.reference.len(), 1);
+    let reference = &signature.signed_info.reference[0];
+    let digest_value = reference
+        .digest_value
+        .as_ref()
+        .expect("Failed to get digest value");
+    let digest_contents = digest_value
+        .base64_content
+        .as_ref()
+        .expect("Failed to get digest value contents");
+    assert_ne!(digest_contents, "");
+
+    let parser = libxml::parser::Parser::default();
+    let document = parser
+        .parse_string(signed_metadata)
+        .expect("Failed to parse response");
+
+    // Constructing a verifier, I hope this works.
+    let mut verifier =
+        XmlSecSignatureContext::new().expect("Failed to create xml XmlSecSignatureContext");
+    let key = XmlSecKey::from_rsa_key_der("server_key", &public_idp_signature_key)
+        .expect("Failed to create public key");
+    verifier.insert_key(key);
+    let verified_signature_nodes = verifier
+        .verify_any_signatures(&document)
+        .expect("Verification failed?");
+    assert_eq!(verified_signature_nodes, 1);
 }

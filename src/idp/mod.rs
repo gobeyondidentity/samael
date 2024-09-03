@@ -1,4 +1,5 @@
 pub mod error;
+pub mod metadata_signer;
 pub mod response_builder;
 pub mod sp_extractor;
 #[cfg(test)]
@@ -9,6 +10,7 @@ use self::error::Error;
 use crate::crypto;
 use crate::idp::response_builder::{build_response_template, ResponseAttribute};
 use crate::key_info::{KeyInfo, X509Data};
+use crate::metadata::EntityDescriptor;
 use crate::schema::Response;
 use crate::signature::Signature;
 use crate::traits::ToXml;
@@ -17,6 +19,7 @@ use crate::xmlsec::{
     XmlSecSignatureContext,
 };
 use lazy_static::lazy_static;
+use metadata_signer::MetadataSigner;
 use openssl::bn::{BigNum, MsbOption};
 use openssl::nid::Nid;
 use openssl::pkey::{Private, Public};
@@ -102,7 +105,18 @@ impl IdentityProvider {
         let rsa: Rsa<Private> = self.private_key.rsa()?;
         Ok(rsa.private_key_to_der()?)
     }
-    // Response
+
+    /// This function takes metadata, produces XML, followed by signing the XML.
+    pub fn sign_metadata(
+        &self,
+        x509_signing_certificate_der: Vec<u8>,
+        metadata: EntityDescriptor,
+    ) -> Result<String, Error> {
+        let signature_key = self.private_key.private_key_to_der()?;
+        let signer = MetadataSigner::new(x509_signing_certificate_der, signature_key);
+        signer.sign_metadata(metadata)
+    }
+
     /// This function is responsible for taking the response object, and
     /// generating the correct Base64 encoded Response from it. This can than be
     /// used when we return the self submitting form. This handles all of the
@@ -428,7 +442,7 @@ fn encrypt_assertions(
     Ok(())
 }
 
-fn update_signature(encoded_certificate: &str, sig: &mut Signature) {
+pub(crate) fn update_signature(encoded_certificate: &str, sig: &mut Signature) {
     let key_info = if let Some(key_info) = sig.key_info.as_mut() {
         key_info
     } else {
