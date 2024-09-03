@@ -55,6 +55,7 @@ fn build_attributes(formats_names_values: &[ResponseAttribute]) -> Vec<Attribute
                 attribute_type: Some("xs:string".to_string()),
                 value: Some(attr.value.to_string()),
             }],
+            namespace: None,
         })
         .collect()
 }

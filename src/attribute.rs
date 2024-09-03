@@ -71,6 +71,10 @@ pub struct Attribute {
     pub name_format: Option<String>,
     #[serde(rename = "AttributeValue", default)]
     pub values: Vec<AttributeValue>,
+    /// This exists to support an overriding default namespace for an attribute
+    /// within WS-Fed.
+    #[serde(rename = "@xmlns", default)]
+    pub namespace: Option<String>,
 }
 
 impl Attribute {
@@ -94,7 +98,10 @@ impl TryFrom<&Attribute> for Event<'_> {
         let mut write_buf = Vec::new();
         let mut writer = Writer::new(Cursor::new(&mut write_buf));
         let mut root = BytesStart::new(Attribute::name());
-
+        if let Some(ns) = value.namespace.as_ref() {
+            root.push_attribute(("xmlns", ns.as_ref()));
+        }
+        
         if let Some(name) = &value.name {
             root.push_attribute(("Name", name.as_ref()));
         }
