@@ -4,7 +4,11 @@ use crate::idp::sp_extractor::{RequiredAttribute, SPMetadataExtractor};
 use crate::idp::verified_request::UnverifiedAuthnRequest;
 use crate::metadata::ws_fed::PassiveRequestorEndpoint;
 use crate::metadata::RoleDescriptor;
-use crate::schema::ws_fed::{Address, EndpointReference};
+use crate::schema::ws_fed::{
+    Address, AppliesTo, EndpointReference, KeyIdentifier, KeyType, LifeTime, LifeTimeCreated,
+    LifeTimeExpires, RequestType, RequestedAttachedReference, RequestedSecurityToken,
+    SecurityTokenReference, TokenType,
+};
 use crate::schema::{
     Assertion, AudienceRestriction, AuthnContext, AuthnContextClassRef, AuthnStatement, Conditions,
     EncryptedAssertionBuilder, EncryptedCipherData, EncryptedCipherValue, EncryptedData,
@@ -918,6 +922,205 @@ fn test_signed_metadata() {
     let key = XmlSecKey::from_rsa_key_der("server_key", &public_idp_signature_key)
         .expect("Failed to create public key");
     verifier.insert_key(key);
+    let verified_signature_nodes = verifier
+        .verify_any_signatures(&document)
+        .expect("Verification failed?");
+    assert_eq!(verified_signature_nodes, 1);
+}
+
+#[test]
+fn test_signed_rstr() {
+    let signature_keys = openssl::rsa::Rsa::generate(4096).unwrap();
+    // let encryption_keys = openssl::rsa::Rsa::generate(4096).unwrap();
+    // let public_key = encryption_keys.public_key_to_pem().unwrap();
+    // let public_encryption_key = openssl::rsa::Rsa::public_key_from_pem(&public_key).unwrap();
+    let public_idp_signature_key = signature_keys.public_key_to_der().unwrap();
+
+    let idp = IdentityProvider::new(None, None, pkey::PKey::from_rsa(signature_keys).unwrap());
+
+    let params = CertificateParams {
+        common_name: "https://idp.example.com",
+        issuer_name: "https://idp.example.com",
+        days_until_expiration: 3650,
+    };
+    let assertion_id = crypto::gen_saml_assertion_id();
+    let issuer = Issuer {
+        value: Some("http://its-a-me.com".to_string()),
+        ..Default::default()
+    };
+    let input = RequestSecurityTokenResponse {
+        context: None,
+        token_type: Some(TokenType {
+            value: "Something".to_string(),
+        }),
+        requested_security_token: RequestedSecurityToken {
+            assertion: Assertion {
+                id: assertion_id.clone(),
+                issue_instant: Utc::now(),
+                version: "2.0".to_string(),
+                issuer: issuer.clone(),
+                signature: Some(Signature::xmlsec_signature_template(
+                    Some(assertion_id.as_str()),
+                    "http://www.w3.org/2001/04/xmldsig-more#rsa-sha256",
+                    "http://www.w3.org/2000/09/xmldsig#sha1",
+                )),
+                subject: Some(Subject {
+                    name_id: Some(SubjectNameID {
+                        format: Some(
+                            "urn:oasis:names:tc:SAML:2.0:nameid-format:unspecified".to_string(),
+                        ),
+                        value: "testuser@example.com".to_owned(),
+                    }),
+                    subject_confirmations: Some(vec![SubjectConfirmation {
+                        method: Some("urn:oasis:names:tc:SAML:2.0:cm:bearer".to_string()),
+                        name_id: None,
+                        subject_confirmation_data: Some(SubjectConfirmationData {
+                            not_before: None,
+                            not_on_or_after: None,
+                            recipient: Some("https://sp.example.com/acs".to_owned()),
+                            in_response_to: Some("123456789".to_owned()),
+                            address: None,
+                            content: None,
+                        }),
+                    }]),
+                }),
+                conditions: Some(Conditions {
+                    not_before: None,
+                    not_on_or_after: None,
+                    audience_restrictions: Some(vec![AudienceRestriction {
+                        audience: vec!["https://sp.example.com/audience".to_string()],
+                    }]),
+                    one_time_use: None,
+                    proxy_restriction: None,
+                }),
+                authn_statements: Some(vec![AuthnStatement {
+                    authn_instant: Some(Utc::now()),
+                    session_index: None,
+                    session_not_on_or_after: None,
+                    subject_locality: None,
+                    authn_context: Some(AuthnContext {
+                        value: Some(AuthnContextClassRef {
+                            value: Some(
+                                "urn:oasis:names:tc:SAML:2.0:ac:classes:unspecified".to_string(),
+                            ),
+                        }),
+                    }),
+                }]),
+                attribute_statements: None,
+            },
+        },
+        applies_to: AppliesTo {
+            endpoint_reference: EndpointReference {
+                address: Address {
+                    value: "Something?".to_string(),
+                },
+            },
+        },
+        key_type: Some(KeyType {
+            value: "key type".to_string(),
+        }),
+        request_type: Some(RequestType {
+            value: "request type".to_string(),
+        }),
+        life_time: Some(LifeTime {
+            created: Some(LifeTimeCreated {
+                value: "LifeTimeCreated".to_string(),
+            }),
+            expires: Some(LifeTimeExpires {
+                value: "LifeTimeExpires".to_string(),
+            }),
+        }),
+        requested_attached_reference: Some(RequestedAttachedReference {
+            security_token_reference: SecurityTokenReference {
+                key_identifier: KeyIdentifier {
+                    value: "key identifier value".to_string(),
+                },
+            },
+        }),
+        requested_unattached_reference: None,
+    };
+
+    let x509_signing_certificate = idp.create_certificate(&params).unwrap();
+    let signed_request = idp
+        .sign_ws_fed_response(x509_signing_certificate, input)
+        .expect("Signing failed");
+
+    let decoded_rstr: RequestSecurityTokenResponse =
+        signed_request.parse().expect("Failed to parse document");
+    println!("Decoded Document: {decoded_rstr:?}");
+    assert!(decoded_rstr.context.is_none());
+    let tt = decoded_rstr
+        .token_type
+        .as_ref()
+        .expect("Failed to get token type");
+    assert_eq!(tt.value, "Something".to_string());
+    let assertion = &decoded_rstr.requested_security_token.assertion;
+    assert_eq!(assertion.id, assertion_id);
+    assert_eq!(assertion.version, "2.0".to_string());
+    let applies_to = &decoded_rstr.applies_to;
+    assert_eq!(
+        applies_to.endpoint_reference.address.value,
+        "Something?".to_string()
+    );
+    let kt = decoded_rstr.key_type.as_ref().unwrap();
+    assert_eq!(kt.value, "key type".to_string());
+
+    let rt = decoded_rstr.request_type.as_ref().unwrap();
+    assert_eq!(rt.value, "request type".to_string());
+
+    let lt = decoded_rstr.life_time.as_ref().unwrap();
+    assert_eq!(
+        lt.created.as_ref().unwrap().value,
+        "LifeTimeCreated".to_string()
+    );
+    assert_eq!(
+        lt.expires.as_ref().unwrap().value,
+        "LifeTimeExpires".to_string()
+    );
+
+    let attached_ref = decoded_rstr.requested_attached_reference.as_ref().unwrap();
+    assert_eq!(
+        attached_ref.security_token_reference.key_identifier.value,
+        "key identifier value"
+    );
+
+    let signature = assertion
+        .signature
+        .as_ref()
+        .expect("Failed to get signature");
+    let key_info = signature.key_info.as_ref().expect("Missing key info");
+    assert_eq!(key_info.len(), 1);
+    let sig_content = signature
+        .signature_value
+        .base64_content
+        .as_ref()
+        .expect("Failed to get signature contents");
+    assert_ne!(sig_content, "");
+    println!("Signature value: {}", sig_content);
+    assert_eq!(signature.signed_info.reference.len(), 1);
+    let reference = &signature.signed_info.reference[0];
+    let digest_value = reference
+        .digest_value
+        .as_ref()
+        .expect("Failed to get digest value");
+    let digest_contents = digest_value
+        .base64_content
+        .as_ref()
+        .expect("Failed to get digest value contents");
+    assert_ne!(digest_contents, "");
+
+    let parser = libxml::parser::Parser::default();
+    let document = parser
+        .parse_string(signed_request)
+        .expect("Failed to parse response");
+
+    // Constructing a verifier, I hope this works.
+    let mut verifier =
+        XmlSecSignatureContext::new().expect("Failed to create xml XmlSecSignatureContext");
+    let key = XmlSecKey::from_rsa_key_der("server_key", &public_idp_signature_key)
+        .expect("Failed to create public key");
+    verifier.insert_key(key);
+    verifier.update_document_id_hash(&document, "ID").unwrap();
     let verified_signature_nodes = verifier
         .verify_any_signatures(&document)
         .expect("Verification failed?");

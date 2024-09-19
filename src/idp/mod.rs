@@ -5,12 +5,14 @@ pub mod sp_extractor;
 #[cfg(test)]
 mod tests;
 pub mod verified_request;
+pub mod ws_fed_response_signer;
 
 use self::error::Error;
 use crate::crypto;
 use crate::idp::response_builder::{build_response_template, ResponseAttribute};
 use crate::key_info::{KeyInfo, X509Data};
 use crate::metadata::EntityDescriptor;
+use crate::schema::ws_fed::RequestSecurityTokenResponse;
 use crate::schema::Response;
 use crate::signature::Signature;
 use crate::traits::ToXml;
@@ -26,6 +28,7 @@ use openssl::pkey::{Private, Public};
 use openssl::rand::rand_bytes;
 use openssl::{asn1::Asn1Time, pkey, rsa::Rsa, x509};
 use std::str::FromStr;
+use ws_fed_response_signer::WsFedResponseSigner;
 
 pub struct IdentityProvider {
     encryption_key_name: Option<String>,
@@ -115,6 +118,16 @@ impl IdentityProvider {
         let signature_key = self.private_key.private_key_to_der()?;
         let signer = MetadataSigner::new(x509_signing_certificate_der, signature_key);
         signer.sign_metadata(metadata)
+    }
+
+    pub fn sign_ws_fed_response(
+        &self,
+        x509_signing_certificate_der: Vec<u8>,
+        rstr: RequestSecurityTokenResponse,
+    ) -> Result<String, Error> {
+        let signature_key = self.private_key.private_key_to_der()?;
+        let signer = WsFedResponseSigner::new(x509_signing_certificate_der, signature_key);
+        signer.sign_request_security_token_response(rstr)
     }
 
     /// This function is responsible for taking the response object, and
