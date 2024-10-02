@@ -35,8 +35,17 @@ pub enum Error {
     #[error("Failed to locate 'SAMLResponse' inside of HTML form")]
     HtmlFormMissingSamlResponse,
 
+    #[error("Failed to locate 'wresult' inside of HTML form")]
+    HtmlFormMissingWResult,
+
     #[error("Multiple 'SAMLResponse' form elements where located")]
     TooManySamlResponses,
+
+    #[error("Multiple 'wresult' form elements where located")]
+    TooManyWResultResponses,
+
+    #[error("Multiple 'ctx' form elements where located")]
+    TooManyCtxResponses,
 
     #[error("Too many document signatures located")]
     TooManyDocumentSignatures,

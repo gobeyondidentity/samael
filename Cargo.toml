@@ -9,7 +9,7 @@ license = "MIT"
 name = "samael"
 readme = "README.md"
 repository = "https://github.com/BbartmanBI/samael_update"
-version = "0.0.30"
+version = "0.0.31"
 
 [lib]
 # Disabling doctests because they cause nix build check phase to fail
@@ -40,4 +40,5 @@ rand = "^0.8.4"
 serde = {version = "^1.0.0", features = ["derive"]}
 thiserror = "^1.0.40"
 url = "^2.1.1"
+urlencoding = "2.1.3"
 uuid = {version = "^1.3.0", features = ["v4"]}

@@ -2,7 +2,7 @@ use std::io::Read;
 
 use super::Error;
 use crate::{
-    schema::Response,
+    schema::{ws_fed::RequestSecurityTokenResponse, Response},
     xmlsec::{
         xml_sec_app_add_id_attr, XmlSecEncryptionContext, XmlSecError, XmlSecKey, XmlSecKeyManager,
         XmlSecSignatureContext,
@@ -205,6 +205,103 @@ impl ResponseVerifier {
         // Parse the current document using serde, into a SAML response that we
         // can be assured that a document was processed correctly.
         Ok(saml_response_document.to_string().parse()?)
+    }
+
+    pub fn verify_from_url_encoded_ws_fed(
+        &self,
+        url_encoded_xml: &str,
+    ) -> Result<RequestSecurityTokenResponse, Error> {
+        let xml_document_str = urlencoding::decode(url_encoded_xml)?.to_string();
+        self.verify_ws_fed_response(&xml_document_str)
+    }
+
+    pub fn verify_ws_fed_response(
+        &self,
+        xml_doc_str: &str,
+    ) -> Result<RequestSecurityTokenResponse, Error> {
+        let parser = Parser::default();
+        let ws_fed_response_document = parser.parse_string(xml_doc_str)?;
+
+        // Verifying document only.
+        let xpath_context = libxml::xpath::Context::new(&ws_fed_response_document)
+            .map_err(|_| XmlSecError::XPathContextError)?;
+        xpath_context
+            .register_namespace("dsig", "http://www.w3.org/2000/09/xmldsig#")
+            .map_err(|_| XmlSecError::XPathNamespaceError)?;
+        xpath_context
+            .register_namespace("samlp", "urn:oasis:names:tc:SAML:2.0:protocol")
+            .map_err(|_| XmlSecError::XPathNamespaceError)?;
+        xpath_context
+            .register_namespace("samla", "urn:oasis:names:tc:SAML:2.0:assertion")
+            .map_err(|_| XmlSecError::XPathNamespaceError)?;
+
+        // Validating assertions signatures
+        let Some(idp_signature_key) = self.idp_public_signature_key.as_ref() else {
+            return Err(Error::MissingIdPPublicSignatureKey);
+        };
+        unsafe {
+            let node_name = std::ffi::CString::new("Assertion")?;
+            let attr_name = std::ffi::CString::new("ID")?;
+            let ns_href = std::ffi::CString::new("urn:oasis:names:tc:SAML:2.0:assertion")?;
+            xml_sec_app_add_id_attr(
+                ws_fed_response_document
+                    .get_root_element()
+                    .unwrap()
+                    .node_ptr() as crate::bindings::xmlNodePtr,
+                &attr_name,
+                &node_name,
+                ns_href.as_ptr() as *const crate::bindings::xmlChar,
+            )?;
+        }
+        let assertions_signature_nodes = xpath_context
+            .evaluate("//samla:Assertion/dsig:Signature")
+            .map_err(|_| XmlSecError::XPathEvaluationError)?;
+        let assertions_signature_nodes = assertions_signature_nodes.get_nodes_as_vec();
+        for signature_node in assertions_signature_nodes.iter() {
+            let mut verifier = XmlSecSignatureContext::new()?;
+            let signature_key = idp_signature_key.rsa()?.public_key_to_pem()?;
+            let key = XmlSecKey::from_rsa_key_pem("server_key", &signature_key)?;
+            verifier.insert_key(key);
+
+            if !verifier.verify_node(&signature_node)? {
+                return Err(Error::InvalidAssertionSignature);
+            }
+        }
+        // Parse the current document using serde, into a SAML response that we
+        // can be assured that a document was processed correctly.
+        Ok(ws_fed_response_document.to_string().parse()?)
+    }
+
+    /// Parses and verifies an HTML form. Returns both the response and
+    /// optionally the relay state if present.
+    pub fn verify_ws_fed_from_form_response(
+        &self,
+        html_form: &str,
+    ) -> Result<(RequestSecurityTokenResponse, Option<String>), Error> {
+        let html_parser = Parser::default_html();
+        let html_document = html_parser.parse_string(html_form)?;
+        let xpath_context = libxml::xpath::Context::new(&html_document)
+            .map_err(|_| XmlSecError::XPathContextError)?;
+        let xpath_object = xpath_context
+            .evaluate("//input[@type='hidden' and @name='SAMLResponse']/@value")
+            .map_err(|_| XmlSecError::XPathEvaluationError)?;
+        let nodes = xpath_object.get_nodes_as_str();
+        if nodes.is_empty() {
+            return Err(Error::HtmlFormMissingWResult);
+        }
+        if nodes.len() > 1 {
+            return Err(Error::TooManyWResultResponses);
+        }
+
+        let verified_response = self.verify_from_url_encoded_ws_fed(nodes[0].as_str())?;
+        let xpath_object = xpath_context
+            .evaluate("//input[@type='hidden' and @name='ctx']/@value")
+            .map_err(|_| XmlSecError::XPathEvaluationError)?;
+        let nodes = xpath_object.get_nodes_as_str();
+        if nodes.len() > 1 {
+            return Err(Error::TooManyCtxResponses);
+        }
+        Ok((verified_response, nodes.first().cloned()))
     }
 }
 
