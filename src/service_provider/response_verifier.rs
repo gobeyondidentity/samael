@@ -283,7 +283,7 @@ impl ResponseVerifier {
         let xpath_context = libxml::xpath::Context::new(&html_document)
             .map_err(|_| XmlSecError::XPathContextError)?;
         let xpath_object = xpath_context
-            .evaluate("//input[@type='hidden' and @name='SAMLResponse']/@value")
+            .evaluate("//input[@type='hidden' and @name='wresult']/@value")
             .map_err(|_| XmlSecError::XPathEvaluationError)?;
         let nodes = xpath_object.get_nodes_as_str();
         if nodes.is_empty() {
