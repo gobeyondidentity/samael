@@ -155,6 +155,9 @@ pub enum Error {
 
     #[error(transparent)]
     Read(#[from] std::io::Error),
+
+    #[error(transparent)]
+    ServiceProvider(#[from] crate::metadata::Error),
 }
 
 #[derive(Builder, Clone)]

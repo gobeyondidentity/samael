@@ -1,7 +1,6 @@
-use std::io::Read;
-
 use super::Error;
 use crate::{
+    metadata::EntityDescriptor,
     schema::{ws_fed::RequestSecurityTokenResponse, Response},
     xmlsec::{
         xml_sec_app_add_id_attr, XmlSecEncryptionContext, XmlSecError, XmlSecKey, XmlSecKeyManager,
@@ -11,6 +10,7 @@ use crate::{
 use flate2::read::DeflateDecoder;
 use libxml::parser::Parser;
 use openssl::pkey::{PKey, Private, Public};
+use std::io::Read;
 
 #[derive(Clone, Builder)]
 pub struct ResponseVerifier {
@@ -302,6 +302,59 @@ impl ResponseVerifier {
             return Err(Error::TooManyCtxResponses);
         }
         Ok((verified_response, nodes.first().cloned()))
+    }
+
+    /// Parses and validates the ws_fed metadata.
+    pub fn verify_ws_fed_metadata(&self, metadata: &str) -> Result<EntityDescriptor, Error> {
+        println!("Metadata! {metadata}");
+        let parser = Parser::default();
+        let document = parser.parse_string(metadata)?;
+        let xpath_context =
+            libxml::xpath::Context::new(&document).map_err(|_| XmlSecError::XPathContextError)?;
+        xpath_context
+            .register_namespace("dsig", "http://www.w3.org/2000/09/xmldsig#")
+            .map_err(|_| XmlSecError::XPathNamespaceError)?;
+        xpath_context
+            .register_namespace("md", "urn:oasis:names:tc:SAML:2.0:metadata")
+            .map_err(|_| XmlSecError::XPathNamespaceError)?;
+        let xpath_object = xpath_context
+            .evaluate("//md:EntityDescriptor/dsig:Signature")
+            .map_err(|_| XmlSecError::XPathEvaluationError)?;
+        let nodes = xpath_object.get_nodes_as_vec();
+        if nodes.is_empty() {
+            return Err(XmlSecError::MissingDocumentSignature.into());
+        }
+        if nodes.len() > 1 {
+            return Err(Error::TooManyDocumentSignatures);
+        }
+        // Building the verifier and validating the signature node.
+        let signature_node = &nodes[0];
+        if let Some(idp_signature_key) = self.idp_public_signature_key.as_ref() {
+            unsafe {
+                let node_name = std::ffi::CString::new("Assertion")?;
+                let attr_name = std::ffi::CString::new("ID")?;
+                let ns_href = std::ffi::CString::new("urn:oasis:names:tc:SAML:2.0:assertion")?;
+                xml_sec_app_add_id_attr(
+                    document.get_root_element().unwrap().node_ptr() as crate::bindings::xmlNodePtr,
+                    &attr_name,
+                    &node_name,
+                    ns_href.as_ptr() as *const crate::bindings::xmlChar,
+                )?;
+            }
+            let mut verifier = XmlSecSignatureContext::new()?;
+            let signature_key = idp_signature_key.rsa()?.public_key_to_pem()?;
+            let key = XmlSecKey::from_rsa_key_pem("server_key", &signature_key)?;
+            verifier.insert_key(key);
+
+            if !verifier.verify_node(signature_node)? {
+                return Err(Error::InvalidDocumentSignature);
+            }
+        } else {
+            println!("We don't have a public key to use for verification.");
+            return Err(XmlSecError::MissingDocumentSignature.into());
+        }
+
+        Ok(document.to_string().parse()?)
     }
 }
 

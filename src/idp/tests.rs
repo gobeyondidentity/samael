@@ -819,16 +819,10 @@ fn test_encrypted_assertions_and_sign_everything() {
 #[test]
 fn test_signed_metadata() {
     let signature_keys = openssl::rsa::Rsa::generate(4096).unwrap();
-    let encryption_keys = openssl::rsa::Rsa::generate(4096).unwrap();
-    let public_key = encryption_keys.public_key_to_pem().unwrap();
-    let public_encryption_key = openssl::rsa::Rsa::public_key_from_pem(&public_key).unwrap();
     let public_idp_signature_key = signature_keys.public_key_to_der().unwrap();
-
-    let idp = IdentityProvider::new(
-        Some("test_key_name".into()),
-        Some(pkey::PKey::from_rsa(public_encryption_key).unwrap()),
-        pkey::PKey::from_rsa(signature_keys).unwrap(),
-    );
+    let public_idp_rsa_signature_key =
+        openssl::rsa::Rsa::public_key_from_der(&public_idp_signature_key).unwrap();
+    let idp = IdentityProvider::new(None, None, pkey::PKey::from_rsa(signature_keys).unwrap());
 
     let params = CertificateParams {
         common_name: "https://idp.example.com",
@@ -926,14 +920,25 @@ fn test_signed_metadata() {
         .verify_any_signatures(&document)
         .expect("Verification failed?");
     assert_eq!(verified_signature_nodes, 1);
+
+    // Verifying ws-fed metadata using ResponseVerifierBuilder
+    let response_verifier = ResponseVerifierBuilder::default()
+        .idp_public_signature_key_name(Some("This is a name".to_string()))
+        .idp_public_signature_key(Some(
+            pkey::PKey::from_rsa(public_idp_rsa_signature_key).unwrap(),
+        ))
+        .build()
+        .unwrap();
+    let _ = response_verifier
+        .verify_ws_fed_metadata(&document.to_string())
+        .unwrap();
+
+    // verify_ws_fed_metadata
 }
 
 #[test]
 fn test_signed_rstr() {
     let signature_keys = openssl::rsa::Rsa::generate(4096).unwrap();
-    // let encryption_keys = openssl::rsa::Rsa::generate(4096).unwrap();
-    // let public_key = encryption_keys.public_key_to_pem().unwrap();
-    // let public_encryption_key = openssl::rsa::Rsa::public_key_from_pem(&public_key).unwrap();
     let public_idp_signature_key = signature_keys.public_key_to_der().unwrap();
 
     let idp = IdentityProvider::new(None, None, pkey::PKey::from_rsa(signature_keys).unwrap());
