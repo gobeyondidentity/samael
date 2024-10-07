@@ -255,7 +255,7 @@ impl EntityDescriptor {
         }
 
         if let Some(id) = &self.id {
-            root.push_attribute(("id", id.as_ref()))
+            root.push_attribute(("ID", id.as_ref()))
         }
         if let Some(valid_until) = &self.valid_until {
             root.push_attribute((
