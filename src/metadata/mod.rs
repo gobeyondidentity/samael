@@ -27,6 +27,7 @@ pub mod de {
 use quick_xml::events::{BytesEnd, BytesStart, BytesText, Event};
 use quick_xml::Writer;
 use std::io::Cursor;
+use ws_fed::{ClaimTypesOffered, TokenTypesOffered};
 
 use serde::Deserialize;
 
@@ -104,6 +105,10 @@ pub struct RoleDescriptor {
     pub organization: Option<Organization>,
     #[serde(rename = "ContactPerson", default)]
     pub contact_people: Vec<ContactPerson>,
+    #[serde(rename = "TokenTypesOffered", default)]
+    pub token_types_offered: Option<TokenTypesOffered>,
+    #[serde(rename = "ClaimTypesOffered", default)]
+    pub claim_types_offered: Option<ClaimTypesOffered>,
     #[serde(rename = "@xsi:type", default)]
     #[serde(alias = "@type")]
     pub r#type: Option<String>,
@@ -186,6 +191,16 @@ impl TryFrom<&RoleDescriptor> for Event<'_> {
 
         for requestor in &value.passive_requestor_endpoint {
             let event: Event<'_> = requestor.try_into()?;
+            writer.write_event(event)?;
+        }
+
+        if let Some(token_types_offered) = value.token_types_offered.as_ref() {
+            let event: Event<'_> = token_types_offered.try_into()?;
+            writer.write_event(event)?;
+        }
+
+        if let Some(claim_types_offered) = value.claim_types_offered.as_ref() {
+            let event: Event<'_> = claim_types_offered.try_into()?;
             writer.write_event(event)?;
         }
 
@@ -461,7 +476,9 @@ mod test {
     use super::*;
     use crate::schema::ws_fed::{Address, EndpointReference};
     use std::str::FromStr;
-    use ws_fed::PassiveRequestorEndpoint;
+    use ws_fed::{
+        AuthDescription, AuthDisplayName, ClaimType, PassiveRequestorEndpoint, WsFedTokenType,
+    };
 
     #[test]
     fn entity_descriptor_rt_with_ws_fed() {
@@ -490,6 +507,22 @@ mod test {
                         },
                     },
                 }],
+                token_types_offered: Some(TokenTypesOffered {
+                    token_types: vec![WsFedTokenType {
+                        uri: "a uri".to_string(),
+                    }],
+                }),
+                claim_types_offered: Some(ClaimTypesOffered {
+                    claim_types: vec![ClaimType {
+                        uri: "Something".to_string(),
+                        display_name: Some(AuthDisplayName {
+                            value: Some("a display_name".to_string()),
+                        }),
+                        description: Some(AuthDescription {
+                            value: Some("a description".to_string()),
+                        }),
+                    }],
+                }),
             }]),
             idp_sso_descriptors: None,
             sp_sso_descriptors: None,

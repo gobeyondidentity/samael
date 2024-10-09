@@ -2,7 +2,10 @@ use super::*;
 use crate::crypto::verify_signed_xml;
 use crate::idp::sp_extractor::{RequiredAttribute, SPMetadataExtractor};
 use crate::idp::verified_request::UnverifiedAuthnRequest;
-use crate::metadata::ws_fed::PassiveRequestorEndpoint;
+use crate::metadata::ws_fed::{
+    AuthDescription, AuthDisplayName, ClaimType, ClaimTypesOffered, PassiveRequestorEndpoint,
+    TokenTypesOffered, WsFedTokenType,
+};
 use crate::metadata::RoleDescriptor;
 use crate::schema::ws_fed::{
     Address, AppliesTo, EndpointReference, KeyIdentifier, KeyType, LifeTime, LifeTimeCreated,
@@ -858,6 +861,22 @@ fn test_signed_metadata() {
                     },
                 },
             }],
+            token_types_offered: Some(TokenTypesOffered {
+                token_types: vec![WsFedTokenType {
+                    uri: "a uri".to_string(),
+                }],
+            }),
+            claim_types_offered: Some(ClaimTypesOffered {
+                claim_types: vec![ClaimType {
+                    uri: "Something".to_string(),
+                    display_name: Some(AuthDisplayName {
+                        value: Some("a display_name".to_string()),
+                    }),
+                    description: Some(AuthDescription {
+                        value: Some("a description".to_string()),
+                    }),
+                }],
+            }),
         }]),
         idp_sso_descriptors: None,
         sp_sso_descriptors: None,
