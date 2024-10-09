@@ -42,6 +42,8 @@ pub const CLAIM_TYPE_XML_NAME: &str = "auth:ClaimType";
 pub struct ClaimType {
     #[serde(rename = "@Uri", default)]
     pub uri: String,
+    #[serde(rename = "@Optional", default)]
+    pub optional: Option<bool>,
     #[serde(rename = "DisplayName", default)]
     pub display_name: Option<AuthDisplayName>,
     #[serde(rename = "Description", default)]
@@ -57,6 +59,13 @@ impl TryFrom<&ClaimType> for Event<'_> {
         let mut root = BytesStart::new(CLAIM_TYPE_XML_NAME);
         root.push_attribute(WS_FED_AUTH_NAMESPACE);
         root.push_attribute(("Uri", value.uri.as_ref()));
+        if let Some(opt) = value.optional.as_ref() {
+            if *opt {
+                root.push_attribute(("Optional", "true"));
+            } else {
+                root.push_attribute(("Optional", "false"));
+            }
+        }
         writer.write_event(Event::Start(root))?;
 
         if let Some(display_name) = value.display_name.as_ref() {

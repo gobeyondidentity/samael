@@ -869,6 +869,7 @@ fn test_signed_metadata() {
             claim_types_offered: Some(ClaimTypesOffered {
                 claim_types: vec![ClaimType {
                     uri: "Something".to_string(),
+                    optional: Some(true),
                     display_name: Some(AuthDisplayName {
                         value: Some("a display_name".to_string()),
                     }),

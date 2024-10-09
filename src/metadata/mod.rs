@@ -521,6 +521,7 @@ mod test {
                         description: Some(AuthDescription {
                             value: Some("a description".to_string()),
                         }),
+                        optional: Some(true),
                     }],
                 }),
             }]),
