@@ -1,3 +1,5 @@
+use saml_1_1::Assertion11;
+
 use super::*;
 
 pub const RST_XML_NAME: &str = "wst:RequestedSecurityToken";
@@ -7,7 +9,7 @@ pub const RST_XML_NAME: &str = "wst:RequestedSecurityToken";
 pub struct RequestedSecurityToken {
     /// This is required to be a SAML assertion by section 13.6.3.
     #[serde(rename = "Assertion")]
-    pub assertion: Assertion,
+    pub assertion: Assertion11,
 }
 
 impl TryFrom<&RequestedSecurityToken> for Event<'_> {

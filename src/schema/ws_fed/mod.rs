@@ -8,6 +8,7 @@ pub mod request_security_token_response;
 pub mod request_type;
 pub mod requested_reference;
 pub mod requested_security_token;
+pub mod saml_1_1;
 pub mod token_type;
 
 pub use address::*;

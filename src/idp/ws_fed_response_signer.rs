@@ -32,7 +32,7 @@ impl WsFedResponseSigner {
         let key = XmlSecKey::from_rsa_key_der("server_key", &self.signature_key_der)?;
         context.insert_key(key);
         // Updating the document with the correct hash value.
-        context.update_document_id_hash(&xml_document, "ID")?;
+        context.update_document_id_hash(&xml_document, "AssertionID")?;
         context.sign_assertions(&xml_document)?;
         Ok(xml_document.to_string())
     }

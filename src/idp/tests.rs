@@ -7,6 +7,10 @@ use crate::metadata::ws_fed::{
     TokenTypesOffered, WsFedTokenType,
 };
 use crate::metadata::RoleDescriptor;
+use crate::schema::ws_fed::saml_1_1::{
+    Assertion11, AudienceRestriction11, AuthenticationStatement11, Conditions11,
+    ConfirmationMethod11, Subject11, SubjectConfirmation11, SubjectNameID11,
+};
 use crate::schema::ws_fed::{
     Address, AppliesTo, EndpointReference, KeyIdentifier, KeyType, LifeTime, LifeTimeCreated,
     LifeTimeExpires, RequestType, RequestedAttachedReference, RequestedSecurityToken,
@@ -969,66 +973,64 @@ fn test_signed_rstr() {
         days_until_expiration: 3650,
     };
     let assertion_id = crypto::gen_saml_assertion_id();
-    let issuer = Issuer {
-        value: Some("http://its-a-me.com".to_string()),
-        ..Default::default()
-    };
     let input = RequestSecurityTokenResponse {
         context: None,
         token_type: Some(TokenType {
             value: "Something".to_string(),
         }),
         requested_security_token: RequestedSecurityToken {
-            assertion: Assertion {
+            assertion: Assertion11 {
                 id: assertion_id.clone(),
                 issue_instant: Utc::now(),
-                version: "2.0".to_string(),
-                issuer: issuer.clone(),
+                issuer: "http://its-a-me.com".to_string(),
                 signature: Some(Signature::xmlsec_signature_template(
                     Some(assertion_id.as_str()),
                     "http://www.w3.org/2001/04/xmldsig-more#rsa-sha256",
                     "http://www.w3.org/2000/09/xmldsig#sha1",
                 )),
-                subject: Some(Subject {
-                    name_id: Some(SubjectNameID {
-                        format: Some(
-                            "urn:oasis:names:tc:SAML:2.0:nameid-format:unspecified".to_string(),
-                        ),
-                        value: "testuser@example.com".to_owned(),
-                    }),
-                    subject_confirmations: Some(vec![SubjectConfirmation {
-                        method: Some("urn:oasis:names:tc:SAML:2.0:cm:bearer".to_string()),
-                        name_id: None,
-                        subject_confirmation_data: Some(SubjectConfirmationData {
-                            not_before: None,
-                            not_on_or_after: None,
-                            recipient: Some("https://sp.example.com/acs".to_owned()),
-                            in_response_to: Some("123456789".to_owned()),
-                            address: None,
-                            content: None,
-                        }),
-                    }]),
-                }),
-                conditions: Some(Conditions {
+                // subject: Some(Subject {
+                //     name_id: Some(SubjectNameID {
+                //         format: Some(
+                //             "urn:oasis:names:tc:SAML:2.0:nameid-format:unspecified".to_string(),
+                //         ),
+                //         value: "testuser@example.com".to_owned(),
+                //     }),
+                //     subject_confirmations: Some(vec![SubjectConfirmation {
+                //         method: Some("urn:oasis:names:tc:SAML:2.0:cm:bearer".to_string()),
+                //         name_id: None,
+                //         subject_confirmation_data: Some(SubjectConfirmationData {
+                //             not_before: None,
+                //             not_on_or_after: None,
+                //             recipient: Some("https://sp.example.com/acs".to_owned()),
+                //             in_response_to: Some("123456789".to_owned()),
+                //             address: None,
+                //             content: None,
+                //         }),
+                //     }]),
+                // }),
+                conditions: Some(Conditions11 {
                     not_before: None,
                     not_on_or_after: None,
-                    audience_restrictions: Some(vec![AudienceRestriction {
+                    audience_restrictions: Some(vec![AudienceRestriction11 {
                         audience: vec!["https://sp.example.com/audience".to_string()],
                     }]),
-                    one_time_use: None,
-                    proxy_restriction: None,
                 }),
-                authn_statements: Some(vec![AuthnStatement {
+                authn_statements: Some(vec![AuthenticationStatement11 {
                     authn_instant: Some(Utc::now()),
-                    session_index: None,
-                    session_not_on_or_after: None,
-                    subject_locality: None,
-                    authn_context: Some(AuthnContext {
-                        value: Some(AuthnContextClassRef {
-                            value: Some(
-                                "urn:oasis:names:tc:SAML:2.0:ac:classes:unspecified".to_string(),
+                    authn_method: Some("Some method".to_string()),
+                    subject: Some(Subject11 {
+                        name_id: Some(SubjectNameID11 {
+                            format: Some(
+                                "urn:oasis:names:tc:SAML:1.1::nameid-format:unspecified"
+                                    .to_string(),
                             ),
+                            value: "testuser@example.com".to_owned(),
                         }),
+                        subject_confirmations: Some(vec![SubjectConfirmation11 {
+                            methods: vec![ConfirmationMethod11 {
+                                value: Some("urn:oasis:names:tc:SAML:1.0:cm:bearer".to_string()),
+                            }],
+                        }]),
                     }),
                 }]),
                 attribute_statements: None,
@@ -1081,7 +1083,6 @@ fn test_signed_rstr() {
     assert_eq!(tt.value, "Something".to_string());
     let assertion = &decoded_rstr.requested_security_token.assertion;
     assert_eq!(assertion.id, assertion_id);
-    assert_eq!(assertion.version, "2.0".to_string());
     let applies_to = &decoded_rstr.applies_to;
     assert_eq!(
         applies_to.endpoint_reference.address.value,
@@ -1145,7 +1146,9 @@ fn test_signed_rstr() {
     let key = XmlSecKey::from_rsa_key_der("server_key", &public_idp_signature_key)
         .expect("Failed to create public key");
     verifier.insert_key(key);
-    verifier.update_document_id_hash(&document, "ID").unwrap();
+    verifier
+        .update_document_id_hash(&document, "AssertionID")
+        .unwrap();
     let verified_signature_nodes = verifier
         .verify_any_signatures(&document)
         .expect("Verification failed?");

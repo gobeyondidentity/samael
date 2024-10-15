@@ -101,7 +101,7 @@ impl TryFrom<&Attribute> for Event<'_> {
         if let Some(ns) = value.namespace.as_ref() {
             root.push_attribute(("xmlns", ns.as_ref()));
         }
-        
+
         if let Some(name) = &value.name {
             root.push_attribute(("Name", name.as_ref()));
         }

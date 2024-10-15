@@ -193,6 +193,11 @@ impl TryFrom<&RequestSecurityTokenResponse> for Event<'_> {
 #[cfg(test)]
 mod test {
     use libxml::parser::Parser;
+    use saml_1_1::{
+        Assertion11, Attribute11, AttributeStatement11, AttributeValue11, AudienceRestriction11,
+        AuthenticationStatement11, Conditions11, ConfirmationMethod11, Subject11,
+        SubjectConfirmation11, SubjectNameID11,
+    };
 
     use super::*;
 
@@ -204,22 +209,53 @@ mod test {
                 value: "token_type".to_string(),
             }),
             requested_security_token: RequestedSecurityToken {
-                assertion: Assertion {
+                assertion: Assertion11 {
                     id: "assertion".to_string(),
                     issue_instant: chrono::Utc::now(),
-                    version: "2.0".to_string(),
-                    issuer: Issuer {
-                        name_qualifier: None,
-                        sp_name_qualifier: None,
-                        format: None,
-                        sp_provided_id: None,
-                        value: None,
-                    },
                     signature: None,
-                    subject: None,
-                    conditions: None,
-                    authn_statements: None,
-                    attribute_statements: None,
+                    conditions: Some(Conditions11 {
+                        not_before: Some(chrono::Utc::now()),
+                        not_on_or_after: Some(chrono::Utc::now()),
+                        audience_restrictions: Some(vec![AudienceRestriction11 {
+                            audience: vec!["1".to_string(), "2".to_string()],
+                        }]),
+                    }),
+                    authn_statements: Some(vec![AuthenticationStatement11 {
+                        authn_instant: Some(chrono::Utc::now()),
+                        authn_method: Some("something".to_string()),
+                        subject: Some(Subject11 {
+                            name_id: Some(SubjectNameID11 {
+                                format: Some("subject name id format".to_string()),
+                                value: "subject name id value".to_string(),
+                            }),
+                            subject_confirmations: Some(vec![SubjectConfirmation11 {
+                                methods: vec![ConfirmationMethod11 {
+                                    value: Some("Subject confirmation Method".to_string()),
+                                }],
+                            }]),
+                        }),
+                    }]),
+                    attribute_statements: Some(vec![AttributeStatement11 {
+                        attributes: vec![Attribute11 {
+                            name: Some("Name".to_string()),
+                            namespace: Some("Namespace".to_string()),
+                            values: vec![AttributeValue11 {
+                                value: Some("AttributeValue".to_string()),
+                            }],
+                        }],
+                        subject: Some(Subject11 {
+                            name_id: Some(SubjectNameID11 {
+                                format: Some("subject name id format".to_string()),
+                                value: "subject name id value".to_string(),
+                            }),
+                            subject_confirmations: Some(vec![SubjectConfirmation11 {
+                                methods: vec![ConfirmationMethod11 {
+                                    value: Some("Subject confirmation Method".to_string()),
+                                }],
+                            }]),
+                        }),
+                    }]),
+                    issuer: "Something".to_string(),
                 },
             },
             applies_to: AppliesTo {
@@ -259,6 +295,7 @@ mod test {
             }),
         };
         let xml_body = rstr.to_xml().expect("Failed to produce XML");
+        println!("{}", xml_body);
         let deserialized = RequestSecurityTokenResponse::from_str(&xml_body).unwrap();
         let parser = Parser::default();
         let _ = parser
@@ -283,6 +320,53 @@ mod test {
             deserialized.requested_unattached_reference,
             rstr.requested_unattached_reference
         );
-        // assert_eq!(deserialized, rstr);
+        // Checking assertion for validity.
+        let actual_assertion = &deserialized.requested_security_token.assertion;
+        let expected_assertion = &rstr.requested_security_token.assertion;
+        assert_eq!(actual_assertion.id, expected_assertion.id);
+        assert_eq!(actual_assertion.issuer, expected_assertion.issuer);
+        // assert_eq!()
+        let actual_conditions = actual_assertion
+            .conditions
+            .as_ref()
+            .expect("Missing actual conditions");
+        assert!(actual_conditions.not_before.is_some());
+        assert!(actual_conditions.not_on_or_after.is_some());
+        let expected_conditions = expected_assertion
+            .conditions
+            .as_ref()
+            .expect("Missing expected conditions");
+        assert_eq!(
+            actual_conditions.audience_restrictions,
+            expected_conditions.audience_restrictions
+        );
+        // assert_eq!( expected_assertion.conditions.len());
+        // assert_eq!(actual_assertion.conditions[0]., )
+
+        let actual_authn_statements = actual_assertion
+            .authn_statements
+            .as_ref()
+            .expect("Missing actual authn_statements");
+        assert_eq!(actual_authn_statements.len(), 1);
+        let actual_authn_statement = &actual_authn_statements[0];
+        let expected_authn_statement = &expected_assertion
+            .authn_statements
+            .as_ref()
+            .expect("Missing expected authn_statements")[0];
+
+        assert!(actual_authn_statement.authn_instant.is_some());
+        assert_eq!(
+            actual_authn_statement.authn_method,
+            expected_authn_statement.authn_method
+        );
+        assert_eq!(
+            actual_authn_statement.subject,
+            expected_authn_statement.subject
+        );
+
+        assert_eq!(
+            actual_assertion.attribute_statements,
+            expected_assertion.attribute_statements
+        );
     }
 }

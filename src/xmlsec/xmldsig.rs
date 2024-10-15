@@ -215,11 +215,15 @@ impl XmlSecSignatureContext {
             .register_namespace("dsig", "http://www.w3.org/2000/09/xmldsig#")
             .map_err(|_| XmlSecError::XPathNamespaceError)?;
         xpath_context
-            .register_namespace("saml", "urn:oasis:names:tc:SAML:2.0:assertion")
+            .register_namespace("saml2", "urn:oasis:names:tc:SAML:2.0:assertion")
+            .map_err(|_| XmlSecError::XPathNamespaceError)?;
+
+        xpath_context
+            .register_namespace("saml1", "urn:oasis:names:tc:SAML:1.0:assertion")
             .map_err(|_| XmlSecError::XPathNamespaceError)?;
 
         let assertion_signature_nodes = xpath_context
-            .evaluate("//saml:Assertion/dsig:Signature")
+            .evaluate("//saml2:Assertion/dsig:Signature|//saml1:Assertion/dsig:Signature")
             .map_err(|_| XmlSecError::XPathEvaluationError)?;
 
         let signature_nodes = assertion_signature_nodes.get_nodes_as_vec();
