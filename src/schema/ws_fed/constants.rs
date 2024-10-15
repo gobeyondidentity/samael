@@ -19,13 +19,13 @@ pub(crate) const NS_WS_SECURITY_UTILITY: (&str, &str) = (
 /// Namespace for WS-Security SecExt
 pub(crate) const NS_WS_SECURITY_SEC_EXT: (&str, &str) = (
     "xmlns:d3p1",
-    "http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-wssecurity-secext-1.0.xsd",
+    "http://docs.oasis-open.org/wss/oasis-wss-wssecurity-secext-1.1.xsd",
 );
 
 /// This is the namespace for the security token reference.
 pub(crate) const NS_WS_SEC_EXT_1_0: (&str, &str) = (
     "xmlns:wssext1",
-    "https://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-wssecurity-secext-1.0.xsd",
+    "http://docs.oasis-open.org/wss/2004/01/oasis-200401-wss-wssecurity-secext-1.0.xsd",
 );
 
 /// This is used to indicate that the provided attribute value is a SAML id.
