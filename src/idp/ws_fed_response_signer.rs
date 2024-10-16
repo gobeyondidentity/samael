@@ -1,3 +1,5 @@
+use libxml::tree::SaveOptions;
+
 use super::*;
 use crate::schema::ws_fed::RequestSecurityTokenResponse;
 
@@ -25,7 +27,6 @@ impl WsFedResponseSigner {
         let rstr_xml = rstr
             .to_xml()
             .map_err(|x| Error::XmlGenerationError(x.to_string()))?;
-
         let parser = libxml::parser::Parser::default();
         let xml_document = parser.parse_string(&rstr_xml)?;
         let mut context = XmlSecSignatureContext::new()?;
@@ -34,7 +35,9 @@ impl WsFedResponseSigner {
         // Updating the document with the correct hash value.
         context.update_document_id_hash(&xml_document, "AssertionID")?;
         context.sign_assertions(&xml_document)?;
-        Ok(xml_document.to_string())
+        let mut options = SaveOptions::default();
+        options.no_declaration = true;
+        Ok(xml_document.to_string_with_options(options))
     }
 }
 
