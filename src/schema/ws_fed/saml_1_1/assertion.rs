@@ -68,14 +68,17 @@ impl TryFrom<&Assertion11> for Event<'_> {
 
         writer.write_event(Event::Start(root))?;
 
-        if let Some(signature) = &value.signature {
-            let event: Event<'_> = signature.try_into()?;
-            writer.write_event(event)?;
-        }
-
         if let Some(conditions) = &value.conditions {
             let event: Event<'_> = conditions.try_into()?;
             writer.write_event(event)?;
+        }
+
+
+        if let Some(statements) = &value.attribute_statements {
+            for statement in statements {
+                let event: Event<'_> = statement.try_into()?;
+                writer.write_event(event)?;
+            }
         }
 
         if let Some(statements) = &value.authn_statements {
@@ -84,13 +87,12 @@ impl TryFrom<&Assertion11> for Event<'_> {
                 writer.write_event(event)?;
             }
         }
-
-        if let Some(statements) = &value.attribute_statements {
-            for statement in statements {
-                let event: Event<'_> = statement.try_into()?;
-                writer.write_event(event)?;
-            }
+        
+        if let Some(signature) = &value.signature {
+            let event: Event<'_> = signature.try_into()?;
+            writer.write_event(event)?;
         }
+
 
         writer.write_event(Event::End(BytesEnd::new(Assertion11::name())))?;
         Ok(Event::Text(BytesText::from_escaped(String::from_utf8(

@@ -150,24 +150,27 @@ impl TryFrom<&RequestSecurityTokenResponse> for Event<'_> {
         }
         writer.write_event(Event::Start(root))?;
 
+        let event: Event<'_> = (&value.applies_to).try_into()?;
+        writer.write_event(event)?;
+
+        let event: Event<'_> = (&value.requested_security_token).try_into()?;
+        writer.write_event(event)?;
+
         if let Some(token_type) = value.token_type.as_ref() {
             let event: Event<'_> = token_type.try_into()?;
             writer.write_event(event)?;
         }
-        let event: Event<'_> = (&value.requested_security_token).try_into()?;
-        writer.write_event(event)?;
 
-        let event: Event<'_> = (&value.applies_to).try_into()?;
-        writer.write_event(event)?;
+        if let Some(request_type) = value.request_type.as_ref() {
+            let event: Event<'_> = request_type.try_into()?;
+            writer.write_event(event)?;
+        }
 
         if let Some(key_type) = value.key_type.as_ref() {
             let event: Event<'_> = key_type.try_into()?;
             writer.write_event(event)?;
         }
-        if let Some(request_type) = value.request_type.as_ref() {
-            let event: Event<'_> = request_type.try_into()?;
-            writer.write_event(event)?;
-        }
+
         if let Some(life_time) = value.life_time.as_ref() {
             let event: Event<'_> = life_time.try_into()?;
             writer.write_event(event)?;
