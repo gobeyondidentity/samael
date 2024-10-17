@@ -26,7 +26,9 @@ impl XmlSecSignatureContext {
         if ctx.is_null() {
             return Err(XmlSecError::ContextInitError);
         }
-
+        unsafe {
+            crate::bindings::xmlSecBase64SetDefaultLineSize(8192);
+        }
         Ok(Self { ctx })
     }
 

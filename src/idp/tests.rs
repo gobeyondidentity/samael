@@ -963,6 +963,9 @@ fn test_signed_metadata() {
 #[test]
 fn test_signed_rstr() {
     let signature_keys = openssl::rsa::Rsa::generate(4096).unwrap();
+    unsafe {
+        crate::bindings::xmlSecBase64SetDefaultLineSize(8192);
+    }
     let public_idp_signature_key = signature_keys.public_key_to_der().unwrap();
 
     let idp = IdentityProvider::new(None, None, pkey::PKey::from_rsa(signature_keys).unwrap());
@@ -988,26 +991,6 @@ fn test_signed_rstr() {
                     "http://www.w3.org/2001/04/xmldsig-more#rsa-sha256",
                     "http://www.w3.org/2000/09/xmldsig#sha1",
                 )),
-                // subject: Some(Subject {
-                //     name_id: Some(SubjectNameID {
-                //         format: Some(
-                //             "urn:oasis:names:tc:SAML:2.0:nameid-format:unspecified".to_string(),
-                //         ),
-                //         value: "testuser@example.com".to_owned(),
-                //     }),
-                //     subject_confirmations: Some(vec![SubjectConfirmation {
-                //         method: Some("urn:oasis:names:tc:SAML:2.0:cm:bearer".to_string()),
-                //         name_id: None,
-                //         subject_confirmation_data: Some(SubjectConfirmationData {
-                //             not_before: None,
-                //             not_on_or_after: None,
-                //             recipient: Some("https://sp.example.com/acs".to_owned()),
-                //             in_response_to: Some("123456789".to_owned()),
-                //             address: None,
-                //             content: None,
-                //         }),
-                //     }]),
-                // }),
                 conditions: Some(Conditions11 {
                     not_before: None,
                     not_on_or_after: None,
@@ -1071,7 +1054,7 @@ fn test_signed_rstr() {
     let signed_request = idp
         .sign_ws_fed_response(x509_signing_certificate, input)
         .expect("Signing failed");
-
+    println!("Did we remove the white space? {}", signed_request);
     let decoded_rstr: RequestSecurityTokenResponse =
         signed_request.parse().expect("Failed to parse document");
     println!("Decoded Document: {decoded_rstr:?}");

@@ -1,4 +1,5 @@
 use base64::{engine::general_purpose, Engine as _};
+use data_encoding::Specification;
 use std::collections::HashMap;
 use std::convert::TryInto;
 use std::ffi::CString;
@@ -465,7 +466,12 @@ pub fn decode_x509_cert(x509_cert: &str) -> Result<Vec<u8>, base64::DecodeError>
 
 // 76-width base64 encoding (MIME)
 pub fn mime_encode_x509_cert(x509_cert_der: &[u8]) -> String {
-    data_encoding::BASE64_MIME.encode(x509_cert_der)
+    let mut spec = Specification::new();
+    spec.symbols
+        .push_str("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/");
+    spec.padding = Some('=');
+    // NOTE(BB): Guaranteed safe because we constructed it using constants.
+    spec.encoding().unwrap().encode(x509_cert_der)
 }
 
 pub fn gen_saml_response_id() -> String {

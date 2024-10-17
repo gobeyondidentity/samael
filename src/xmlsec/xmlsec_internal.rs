@@ -23,6 +23,8 @@ pub fn guarantee_xmlsec_init() -> XmlSecResult<()> {
 
     if inner.is_none() {
         *inner = Some(XmlSecContext::new()?);
+        // xml_sec_base64_set_default_size(8128);
+        // xmlSecBase64SetDefaultLineSize
     }
 
     Ok(())

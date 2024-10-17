@@ -12,4 +12,5 @@
 #include <xmlsec/xmlenc.h>
 #include <xmlsec/xmlsec.h>
 #include <xmlsec/xmltree.h>
+#include <xmlsec/base64.h>
 #include <libxml/xpathInternals.h>

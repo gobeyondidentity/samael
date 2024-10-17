@@ -158,6 +158,9 @@ pub enum Error {
 
     #[error(transparent)]
     ServiceProvider(#[from] crate::metadata::Error),
+
+    #[error(transparent)]
+    DataEncoding(#[from] data_encoding::SpecificationError),
 }
 
 #[derive(Builder, Clone)]
