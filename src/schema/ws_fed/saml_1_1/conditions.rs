@@ -35,7 +35,7 @@ impl TryFrom<&Conditions11> for Event<'_> {
             root.push_attribute((
                 "NotBefore",
                 not_before
-                    .to_rfc3339_opts(SecondsFormat::Secs, true)
+                    .to_rfc3339_opts(SecondsFormat::Millis, true)
                     .as_ref(),
             ));
         }
@@ -43,7 +43,7 @@ impl TryFrom<&Conditions11> for Event<'_> {
             root.push_attribute((
                 "NotOnOrAfter",
                 not_on_or_after
-                    .to_rfc3339_opts(SecondsFormat::Secs, true)
+                    .to_rfc3339_opts(SecondsFormat::Millis, true)
                     .as_ref(),
             ));
         }
