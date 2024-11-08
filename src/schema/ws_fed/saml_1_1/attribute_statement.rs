@@ -34,14 +34,16 @@ impl TryFrom<&AttributeStatement11> for Event<'_> {
 
         writer.write_event(Event::Start(root))?;
 
-        for attr in &value.attributes {
-            let event: Event<'_> = attr.try_into()?;
-            writer.write_event(event)?;
-        }
         if let Some(subject) = value.subject.as_ref() {
             let event: Event<'_> = subject.try_into()?;
             writer.write_event(event)?;
         }
+
+        for attr in &value.attributes {
+            let event: Event<'_> = attr.try_into()?;
+            writer.write_event(event)?;
+        }
+
 
         writer.write_event(Event::End(BytesEnd::new(AttributeStatement11::name())))?;
         Ok(Event::Text(BytesText::from_escaped(String::from_utf8(

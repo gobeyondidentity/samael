@@ -4,7 +4,7 @@ pub const ADDRESS_XML_NAME: &str = "wsa:Address";
 
 /// Required by section 13.6.3.
 ///
-/// The <wst:RequestSecurityTokenResponse> element MAY include a wsp:AppliesTo /
+/// The <t:RequestSecurityTokenResponse> element MAY include a wsp:AppliesTo /
 /// wsa:EndpointReference / wsa:Address element that specifies the Resource
 /// Realm URI.  Note that this data MUST be consistent with similar data present
 /// in security tokens (if any is present) – for example it must duplicate the

@@ -1,6 +1,6 @@
 use super::*;
 
-pub const REQUESTED_ATTACHED_REFERENCE_XML_NAME: &str = "wst:RequestedAttachedReference";
+pub const REQUESTED_ATTACHED_REFERENCE_XML_NAME: &str = "t:RequestedAttachedReference";
 
 #[derive(Clone, Debug, Deserialize, Hash, Eq, PartialEq, Ord, PartialOrd)]
 pub struct RequestedAttachedReference {
@@ -29,7 +29,7 @@ impl TryFrom<&RequestedAttachedReference> for Event<'_> {
     }
 }
 
-pub const REQUESTED_UNATTACHED_REFERENCE_XML_NAME: &str = "wst:RequestedUnattachedReference";
+pub const REQUESTED_UNATTACHED_REFERENCE_XML_NAME: &str = "t:RequestedUnattachedReference";
 
 #[derive(Clone, Debug, Deserialize, Hash, Eq, PartialEq, Ord, PartialOrd)]
 pub struct RequestedUnattachedReference {

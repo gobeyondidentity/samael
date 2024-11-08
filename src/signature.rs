@@ -245,6 +245,7 @@ impl TryFrom<&SignedInfo> for Event<'_> {
         if let Some(id) = &value.id {
             root.push_attribute(("Id", id.as_ref()));
         }
+        root.push_attribute(SCHEMA);
         writer.write_event(Event::Start(root))?;
         let event: Event<'_> = (&value.canonicalization_method).try_into()?;
         writer.write_event(event)?;

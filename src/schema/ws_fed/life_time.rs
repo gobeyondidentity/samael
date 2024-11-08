@@ -1,6 +1,6 @@
 use super::*;
 
-pub const LIFE_TIME_XML_NAME: &str = "wst:LifeTime";
+pub const LIFE_TIME_XML_NAME: &str = "t:LifeTime";
 
 #[derive(Clone, Debug, Deserialize, Hash, Eq, PartialEq, Ord, PartialOrd)]
 pub struct LifeTime {

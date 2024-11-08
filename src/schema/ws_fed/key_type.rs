@@ -1,6 +1,6 @@
 use super::*;
 
-pub const KEY_TYPE_XML_NAME: &str = "wst:KeyType";
+pub const KEY_TYPE_XML_NAME: &str = "t:KeyType";
 
 #[derive(Clone, Debug, Deserialize, Hash, Eq, PartialEq, Ord, PartialOrd)]
 pub struct KeyType {

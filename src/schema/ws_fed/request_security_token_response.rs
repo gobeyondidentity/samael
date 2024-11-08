@@ -1,6 +1,6 @@
 use super::*;
 
-pub const RSTR_XML_NAME: &str = "wst:RequestSecurityTokenResponse";
+pub const RSTR_XML_NAME: &str = "t:RequestSecurityTokenResponse";
 pub const RSTR_CONTEXT_ATTR_NAME: &str = "Context";
 
 /// Definition available inside of WS-Trust 1.4 standard
@@ -30,7 +30,7 @@ pub struct RequestSecurityTokenResponse {
     /// requested security token is used in securing the message, then the
     /// security token is placed into the <wsse:Security> header (as described
     /// in [WS-Security]) and a <wsse:SecurityTokenReference> element is placed
-    /// inside of the <wst:RequestedSecurityToken> element to reference the
+    /// inside of the <t:RequestedSecurityToken> element to reference the
     /// token in the <wsse:Security> header. The response MAY contain a token
     /// reference where the token is located at a URI outside of the message. In
     /// such cases the recipient is assumed to know how to fetch the token from
@@ -41,9 +41,9 @@ pub struct RequestSecurityTokenResponse {
     ///
     /// Not optional as required by section 13.6.3 WS-Fed
     ///
-    /// The <wst:RequestSecurityTokenResponse> element that is included as the
+    /// The <t:RequestSecurityTokenResponse> element that is included as the
     /// wresult field in the SignIn response MUST contain a
-    /// <wst:RequestedSecurityToken> element.  Support for SAML assertions MUST
+    /// <t:RequestedSecurityToken> element.  Support for SAML assertions MUST
     /// be provided but another token format MAY be used (depending on policy).
     #[serde(rename = "RequestedSecurityToken")]
     pub requested_security_token: RequestedSecurityToken,
@@ -55,7 +55,7 @@ pub struct RequestSecurityTokenResponse {
     ///
     /// Required in our context for section 13.6.3 ws-fed
     ///
-    /// The <wst:RequestSecurityTokenResponse> element MAY include a
+    /// The <t:RequestSecurityTokenResponse> element MAY include a
     /// wsp:AppliesTo / wsa:EndpointReference / wsa:Address element that
     /// specifies the Resource Realm URI.  Note that this data MUST be
     /// consistent with similar data present in security tokens (if any is
@@ -115,7 +115,7 @@ pub struct RequestSecurityTokenResponse {
     /// information.
     #[serde(rename = "RequestedUnattachedReference")]
     pub requested_unattached_reference: Option<RequestedUnattachedReference>,
-    // Not supported: <wst:RequestedProofToken> <wst:Entropy><wst:BinarySecret>...</wst:BinarySecret>
+    // Not supported: <t:RequestedProofToken> <t:Entropy><t:BinarySecret>...</t:BinarySecret>
 }
 impl RequestSecurityTokenResponse {
     pub fn to_xml(&self) -> Result<String, Box<dyn std::error::Error>> {

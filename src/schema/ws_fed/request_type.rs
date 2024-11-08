@@ -1,6 +1,6 @@
 use super::*;
 
-pub const REQUEST_TYPE_XML_NAME: &str = "wst:RequestType";
+pub const REQUEST_TYPE_XML_NAME: &str = "t:RequestType";
 
 #[derive(Clone, Debug, Deserialize, Hash, Eq, PartialEq, Ord, PartialOrd)]
 pub struct RequestType {

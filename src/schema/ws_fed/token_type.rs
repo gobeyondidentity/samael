@@ -1,6 +1,6 @@
 use super::*;
 
-pub const TOKEN_TYPE_XML_NAME: &str = "wst:TokenType";
+pub const TOKEN_TYPE_XML_NAME: &str = "t:TokenType";
 
 #[derive(Clone, Debug, Deserialize, Hash, Eq, PartialEq, Ord, PartialOrd)]
 pub struct TokenType {

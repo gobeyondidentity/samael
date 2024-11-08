@@ -1,6 +1,6 @@
 /// Namespace for WS-Trust.
 pub(crate) const NS_WS_TRUST: (&str, &str) =
-    ("xmlns:wst", "http://schemas.xmlsoap.org/ws/2005/02/trust");
+    ("xmlns:t", "http://schemas.xmlsoap.org/ws/2005/02/trust");
 
 /// Namespace for SOAP policy
 pub(crate) const NS_WS_POLICY: (&str, &str) =

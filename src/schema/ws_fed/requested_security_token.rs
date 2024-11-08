@@ -2,7 +2,7 @@ use saml_1_1::Assertion11;
 
 use super::*;
 
-pub const RST_XML_NAME: &str = "wst:RequestedSecurityToken";
+pub const RST_XML_NAME: &str = "t:RequestedSecurityToken";
 
 /// This olds the "token", which in this case is a signed assertion.
 #[derive(Clone, Debug, Deserialize, Hash, Eq, PartialEq, Ord, PartialOrd)]
