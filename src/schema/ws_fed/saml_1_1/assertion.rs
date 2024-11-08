@@ -10,7 +10,7 @@ pub struct Assertion11 {
     #[serde(rename = "@Issuer")]
     pub issuer: String,
     #[serde(rename = "@IssueInstant")]
-    pub issue_instant: DateTime<Utc>,
+    pub issue_instant: String,
     #[serde(rename = "Signature")]
     pub signature: Option<Signature>,
     #[serde(rename = "Conditions")]
@@ -56,13 +56,7 @@ impl TryFrom<&Assertion11> for Event<'_> {
 
         root.push_attribute(("AssertionID", value.id.as_ref()));
         root.push_attribute(("Issuer", value.issuer.as_ref()));
-        root.push_attribute((
-            "IssueInstant",
-            value
-                .issue_instant
-                .to_rfc3339_opts(SecondsFormat::Millis, true)
-                .as_ref(),
-        ));
+        root.push_attribute(("IssueInstant", value.issue_instant.as_str()));
         root.push_attribute(("MajorVersion", "1"));
         root.push_attribute(("MinorVersion", "1"));
 
@@ -72,7 +66,6 @@ impl TryFrom<&Assertion11> for Event<'_> {
             let event: Event<'_> = conditions.try_into()?;
             writer.write_event(event)?;
         }
-
 
         if let Some(statements) = &value.attribute_statements {
             for statement in statements {
@@ -87,12 +80,11 @@ impl TryFrom<&Assertion11> for Event<'_> {
                 writer.write_event(event)?;
             }
         }
-        
+
         if let Some(signature) = &value.signature {
             let event: Event<'_> = signature.try_into()?;
             writer.write_event(event)?;
         }
-
 
         writer.write_event(Event::End(BytesEnd::new(Assertion11::name())))?;
         Ok(Event::Text(BytesText::from_escaped(String::from_utf8(

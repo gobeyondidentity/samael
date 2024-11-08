@@ -984,7 +984,7 @@ fn test_signed_rstr() {
         requested_security_token: RequestedSecurityToken {
             assertion: Assertion11 {
                 id: assertion_id.clone(),
-                issue_instant: Utc::now(),
+                issue_instant: "3".to_string(),
                 issuer: "http://its-a-me.com".to_string(),
                 signature: Some(Signature::xmlsec_signature_template(
                     Some(assertion_id.as_str()),
@@ -999,7 +999,7 @@ fn test_signed_rstr() {
                     }]),
                 }),
                 authn_statements: Some(vec![AuthenticationStatement11 {
-                    authn_instant: Some(Utc::now()),
+                    authn_instant: Some("3".to_string()),
                     authn_method: Some("Some method".to_string()),
                     subject: Some(Subject11 {
                         name_id: Some(SubjectNameID11 {

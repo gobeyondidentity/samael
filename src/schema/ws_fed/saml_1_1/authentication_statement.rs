@@ -5,7 +5,7 @@ use super::*;
 pub struct AuthenticationStatement11 {
     #[serde(rename = "@AuthenticationInstant")]
     #[builder(default)]
-    pub authn_instant: Option<chrono::DateTime<Utc>>,
+    pub authn_instant: Option<String>,
     #[serde(rename = "@AuthenticationMethod")]
     #[builder(default)]
     pub authn_method: Option<String>,
@@ -41,12 +41,7 @@ impl TryFrom<&AuthenticationStatement11> for Event<'_> {
         }
 
         if let Some(instant) = &value.authn_instant {
-            root.push_attribute((
-                "AuthenticationInstant",
-                instant
-                    .to_rfc3339_opts(SecondsFormat::Millis, true)
-                    .as_ref(),
-            ));
+            root.push_attribute(("AuthenticationInstant", instant.as_str()));
         }
         writer.write_event(Event::Start(root))?;
 

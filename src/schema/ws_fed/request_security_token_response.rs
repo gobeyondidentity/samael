@@ -214,17 +214,17 @@ mod test {
             requested_security_token: RequestedSecurityToken {
                 assertion: Assertion11 {
                     id: "assertion".to_string(),
-                    issue_instant: chrono::Utc::now(),
+                    issue_instant: "3".to_string(),
                     signature: None,
                     conditions: Some(Conditions11 {
-                        not_before: Some(chrono::Utc::now()),
-                        not_on_or_after: Some(chrono::Utc::now()),
+                        not_before: Some("3".to_string()),
+                        not_on_or_after: Some("3".to_string()),
                         audience_restrictions: Some(vec![AudienceRestriction11 {
                             audience: vec!["1".to_string(), "2".to_string()],
                         }]),
                     }),
                     authn_statements: Some(vec![AuthenticationStatement11 {
-                        authn_instant: Some(chrono::Utc::now()),
+                        authn_instant: Some("3".to_string()),
                         authn_method: Some("something".to_string()),
                         subject: Some(Subject11 {
                             name_id: Some(SubjectNameID11 {
