@@ -1,5 +1,5 @@
 pub mod attribute;
-mod bindings;
+pub mod bindings;
 pub mod crypto;
 pub mod idp;
 pub mod key_info;
