@@ -83,8 +83,6 @@
             ";
 
             nativeBuildInputs = commonNativeBuildInputs;
-            cargoExtraArgs = "--features xmlsec";
-            cargoTestExtraArgs = "--features xmlsec";
           };
           # Build *just* the cargo dependencies, so we can reuse
           # all of that work (e.g. via cachix) when running in CI
