@@ -40,6 +40,11 @@ impl XmlSecEncryptionContext {
             return Err(XmlSecError::ContextInitError);
         }
 
+        unsafe {
+            (*ctx).keyInfoWriteCtx.flags |= bindings::XMLSEC_KEYINFO_FLAGS_LAX_KEY_SEARCH;
+            (*ctx).keyInfoReadCtx.flags |= bindings::XMLSEC_KEYINFO_FLAGS_LAX_KEY_SEARCH;
+        }
+
         Ok(Self { ctx })
     }
 
