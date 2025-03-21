@@ -37,14 +37,26 @@ fn main() {
     println!("cargo:rustc-link-lib=crypto"); // -lcrypto
 
     if !path_bindings.exists() {
-        PkgConfig::new()
+        let pkgconfig = PkgConfig::new();
+
+        pkgconfig
             .probe("xmlsec1")
             .expect("Could not find xmlsec1 using pkg-config");
+
+        let openssl = pkgconfig
+            .probe("openssl")
+            .expect("Could not find openssl using pkg-config");
 
         let bindbuild = BindgenBuilder::default()
             .header("bindings.h")
             .clang_args(cflags)
             .clang_args(fetch_xmlsec_config_libs())
+            .clang_args(
+                openssl
+                    .include_paths
+                    .into_iter()
+                    .map(|p| format!("-I{}", p.display())),
+            )
             .layout_tests(true)
             .generate_comments(true);
 
