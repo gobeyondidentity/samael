@@ -40,6 +40,15 @@ impl XmlSecEncryptionContext {
             return Err(XmlSecError::ContextInitError);
         }
 
+        // xmlsec 1.3 changed how keys are discovered via the KeysMngr. The old default mode is
+        // now the "lax" mode that has to be explicitly enabled. This keeps the old behavior.
+        // https://github.com/lsh123/xmlsec/releases/tag/xmlsec_1_3_0
+        #[cfg(xmlsec_1_3)]
+        unsafe {
+            (*ctx).keyInfoWriteCtx.flags |= bindings::XMLSEC_KEYINFO_FLAGS_LAX_KEY_SEARCH;
+            (*ctx).keyInfoReadCtx.flags |= bindings::XMLSEC_KEYINFO_FLAGS_LAX_KEY_SEARCH;
+        }
+
         Ok(Self { ctx })
     }
 

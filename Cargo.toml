@@ -22,6 +22,7 @@ doctest = false
 [build-dependencies]
 bindgen = "^0.69.1"
 pkg-config = "^0.3.17"
+semver = "1.0.26"
 
 [dependencies]
 base64 = "^0.22.0"

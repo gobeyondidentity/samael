@@ -4,6 +4,7 @@
 use bindgen::Builder as BindgenBuilder;
 
 use pkg_config::Config as PkgConfig;
+use semver::Version;
 
 use std::env;
 use std::path::PathBuf;
@@ -28,32 +29,63 @@ fn main() {
         false
     };
 
-    // if !dynamic {
-    // }
+    if fetch_xmlsec_version()
+        >= (Version {
+            major: 1,
+            minor: 3,
+            patch: 0,
+            pre: Default::default(),
+            build: Default::default(),
+        })
+    {
+        println!("cargo:rustc-cfg=xmlsec_1_3");
+    }
+
     println!("cargo:rustc-link-lib=xmlsec1-openssl"); // -lxmlsec1-openssl
     println!("cargo:rustc-link-lib=xmlsec1"); // -lxmlsec1
     println!("cargo:rustc-link-lib=xml2"); // -lxml2
     println!("cargo:rustc-link-lib=ssl"); // -lssl
     println!("cargo:rustc-link-lib=crypto"); // -lcrypto
 
-    if !path_bindings.exists() {
-        PkgConfig::new()
-            .probe("xmlsec1")
-            .expect("Could not find xmlsec1 using pkg-config");
+    let pkgconfig = PkgConfig::new();
 
-        let bindbuild = BindgenBuilder::default()
-            .header("bindings.h")
-            .clang_args(cflags)
-            .clang_args(fetch_xmlsec_config_libs())
-            .layout_tests(true)
-            .generate_comments(true);
+    pkgconfig
+        .probe("xmlsec1")
+        .expect("Could not find xmlsec1 using pkg-config");
 
-        let bindings = bindbuild.generate().expect("Unable to generate bindings");
+    let openssl = pkgconfig
+        .probe("openssl")
+        .expect("Could not find openssl using pkg-config");
 
-        bindings
-            .write_to_file(path_bindings)
-            .expect("Couldn't write bindings!");
-    }
+    let bindbuild = BindgenBuilder::default()
+        .header("bindings.h")
+        .clang_args(cflags)
+        .clang_args(fetch_xmlsec_config_libs())
+        .clang_args(
+            openssl
+                .include_paths
+                .into_iter()
+                .map(|p| format!("-I{}", p.display())),
+        )
+        .layout_tests(true)
+        .generate_comments(true);
+
+    let bindings = bindbuild.generate().expect("Unable to generate bindings");
+
+    bindings
+        .write_to_file(path_bindings)
+        .expect("Couldn't write bindings!");
+}
+
+fn fetch_xmlsec_version() -> semver::Version {
+    let out = Command::new("xmlsec1-config")
+        .arg("--version")
+        .output()
+        .expect("Failed to get --cflags from xmlsec1-config. Is xmlsec1 installed?")
+        .stdout;
+
+    semver::Version::parse(String::from_utf8(out).unwrap().trim_end())
+        .expect("failed to parse xmlsec version")
 }
 
 fn fetch_xmlsec_config_flags() -> Vec<String> {
