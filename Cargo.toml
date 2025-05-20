@@ -9,7 +9,7 @@ license = "MIT"
 name = "samael"
 readme = "README.md"
 repository = "https://github.com/BbartmanBI/samael_update"
-version = "0.0.47"
+version = "0.0.48"
 
 [lib]
 # Disabling doctests because they cause nix build check phase to fail
@@ -32,7 +32,7 @@ derive_builder = "^0.20.0"
 flate2 = "^1.0.0"
 lazy_static = {version = "^1.4.0"}
 libc = {version = "^0.2.66"}
-libxml = {version = "^0.3.1"}
+libxml = {version = "0.3.3"}
 openssl = "^0.10.0"
 openssl-probe = "^0.1.2"
 openssl-sys = "^0.9.0"
